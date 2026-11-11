@@ -1,6 +1,6 @@
 unit lauxlib;
 (*
-** Opcodes for Lua virtual machine
+** Auxiliary functions for building Lua libraries
 ** See Copyright Notice in fp_lua.pas
 *)
 {$i defines.inc}
@@ -600,7 +600,7 @@ procedure luaL_addchar(var B: luaL_Buffer; const c: Char);
 begin
   if B.n < B.size then
     luaL_prepbuffsize(B, 1);
-  B.b[B.n] = c;
+  B.b[B.n] := c;
   inc(B.n);
 end;
 
