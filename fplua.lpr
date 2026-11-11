@@ -11,7 +11,7 @@ uses
   cthreads,
   {$ENDIF}
   Classes, fp_lua, lopcodes, fplua_common, fplua_types, lobject, lfunc, lstate, ltm, lzio, lmem,
-  ldo, lctype, lgc, lapi;
+  ldo, lctype, lgc, lapi, lauxlib;
 
 begin
 

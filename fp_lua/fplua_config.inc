@@ -54,7 +54,13 @@
 ** manipulating other integer types (lua_pushunsigned, lua_tounsigned,
 ** luaL_checkint, luaL_checklong, etc.)
 *)
-{-$define LUA_COMPAT_APIINTCASTS}
+{$define LUA_COMPAT_APIINTCASTS}
+
+(*
+@@ LUA_COMPAT_MODULE controls compatibility with previous
+** module functions 'module' (Lua) and 'luaL_register' (C).
+*)
+{$define LUA_COMPAT_MODULE}
 
 {$define FPLUA_EX_LOCK}
 {$define FPLUA_EX_THREADYEILD}
