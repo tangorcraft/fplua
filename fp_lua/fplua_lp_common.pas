@@ -118,6 +118,7 @@ type
     t: Integer;  //* patch list of 'exit when true' */
     f: Integer;  //* patch list of 'exit when false' */
   end;
+  Pexpdesc = ^expdesc;
 
 
 (* description of active local variable *)
