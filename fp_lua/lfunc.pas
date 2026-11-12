@@ -11,19 +11,13 @@ interface
 uses
   fplua_types, fplua_common;
 
-//#define sizeCclosure(n)       (cast(int, sizeof(CClosure)) + \
-//                         cast(int, sizeof(TValue)*((n)-1)))
 function sizeCclosure(n: Integer): Integer;
 
-//#define sizeLclosure(n)       (cast(int, sizeof(LClosure)) + \
-//                         cast(int, sizeof(TValue *)*((n)-1)))
 function sizeLclosure(n: Integer): Integer;
 
 
-// TODO
 (* test whether thread is in 'twups' list *)
-//#define isintwups(L)  (L->twups != L)
-function isintwups(const L: lua_State): Boolean;
+function isintwups(const L: Plua_State): Boolean;
 
 
 (*
@@ -34,7 +28,6 @@ const
   MAXUPVAL     = 255;
 
 
-//#define upisopen(up)    ((up)->v != &(up)->u.value)
 function upisopen(const up: UpVal): Boolean;
 
 { TODO
@@ -59,21 +52,27 @@ function luaF_getlocalname(const func: PProto; const local_number, pc: Integer):
 
 implementation
 
+//#define sizeCclosure(n)       (cast(int, sizeof(CClosure)) + \
+//                         cast(int, sizeof(TValue)*((n)-1)))
 function sizeCclosure(n: Integer): Integer;
 begin
   Result := sizeof(CClosure) + sizeof(TValue) * (n - 1);
 end;
 
+//#define sizeLclosure(n)       (cast(int, sizeof(LClosure)) + \
+//                         cast(int, sizeof(TValue *)*((n)-1)))
 function sizeLclosure(n: Integer): Integer;
 begin
   Result := sizeof(LClosure) + sizeof(PTValue) * (n - 1);
 end;
 
-function isintwups(const L: lua_State): Boolean;
+//#define isintwups(L)  (L->twups != L)
+function isintwups(const L: Plua_State): Boolean;
 begin
-  Result := (L.twups <> @L);
+  Result := (L^.twups <> L);
 end;
 
+//#define upisopen(up)    ((up)->v != &(up)->u.value)
 function upisopen(const up: UpVal): Boolean;
 begin
   Result := (up.v <> @(up.value));

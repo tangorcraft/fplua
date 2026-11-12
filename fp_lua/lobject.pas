@@ -64,7 +64,6 @@ const
   BIT_ISCOLLECTABLE     = (1 shl 6);
 
 (* mark a tag as collectable *)
-//#define ctb(t)                  ((t) | BIT_ISCOLLECTABLE)
 function ctb(const t: Integer): Integer;
 const
   ctb_LUA_TNIL            = LUA_TNIL or BIT_ISCOLLECTABLE;
@@ -220,25 +219,22 @@ procedure setobj(const L: Plua_State; var obj1,obj2: TValuefields);
 (*
 ** different types of assignments, according to destination
 *)
-// TODO
 
 (* from stack to (same) stack *)
-//#define setobjs2s       setobj
+procedure setobjs2s(const L: Plua_State; var obj1,obj2: TValuefields);
 (* to stack (not from same stack) *)
-//#define setobj2s        setobj
-//#define setsvalue2s     setsvalue
-//#define sethvalue2s     sethvalue
-//#define setptvalue2s    setptvalue
+procedure setobj2s(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setsvalue2s(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure sethvalue2s(const L: Plua_State; var o: TValuefields; const x: PTable);
+//#define setptvalue2s    setptvalue // no such thing, not use anywhere (╯°□°)╯︵ ┻━┻
 (* from table to same table *)
-//#define setobjt2t       setobj
+procedure setobjt2t(const L: Plua_State; var obj1,obj2: TValuefields);
 (* to new object *)
-//#define setobj2n        setobj
-//#define setsvalue2n     setsvalue
+procedure setobj2n(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setsvalue2n(const L: Plua_State; var o: TValuefields; const x: PTString);
 
 (* to table (define it as an expression to be used in macros) *)
-// TODO
-//#define setobj2t(L,o1,o2)  ((void)L, *(o1)=*(o2), checkliveness(L,(o1)))
-
+procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
 
 
 
@@ -348,6 +344,7 @@ implementation
 uses
   lstate, lgc;
 
+//#define ctb(t)                  ((t) | BIT_ISCOLLECTABLE)
 function ctb(const t: Integer): Integer;
 begin
   Result := t or BIT_ISCOLLECTABLE;
@@ -793,6 +790,55 @@ procedure setobj(const L: Plua_State; var obj1, obj2: TValuefields);
 begin
   obj1 := obj2;
   checkliveness(L, obj1);
+end;
+
+//#define setobjs2s       setobj
+procedure setobjs2s(const L: Plua_State; var obj1, obj2: TValuefields);
+begin
+  setobj(L, obj1, obj2);
+end;
+
+//#define setobj2s        setobj
+procedure setobj2s(const L: Plua_State; var obj1, obj2: TValuefields);
+begin
+  setobj(L, obj1, obj2);
+end;
+
+//#define setsvalue2s     setsvalue
+procedure setsvalue2s(const L: Plua_State; var o: TValuefields; const x: PTString);
+begin
+  setsvalue(L, o, x);
+end;
+
+//#define sethvalue2s     sethvalue
+procedure sethvalue2s(const L: Plua_State; var o: TValuefields; const x: PTable);
+begin
+  sethvalue(L, o, x);
+end;
+
+//#define setobjt2t       setobj
+procedure setobjt2t(const L: Plua_State; var obj1, obj2: TValuefields);
+begin
+  setobj(L, obj1, obj2);
+end;
+
+//#define setobj2n        setobj
+procedure setobj2n(const L: Plua_State; var obj1, obj2: TValuefields);
+begin
+  setobj(L, obj1, obj2);
+end;
+
+//#define setsvalue2n     setsvalue
+procedure setsvalue2n(const L: Plua_State; var o: TValuefields; const x: PTString);
+begin
+  setsvalue(L, o, x);
+end;
+
+//#define setobj2t(L,o1,o2)  ((void)L, *(o1)=*(o2), checkliveness(L,(o1)))
+procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
+begin
+  o1^ := o2^;
+  checkliveness(L,o1);
 end;
 
 //#define getstr(ts)  \

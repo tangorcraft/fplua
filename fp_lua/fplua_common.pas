@@ -657,6 +657,7 @@ function check_exp(const c: Boolean; const e: lua_Number): lua_Number; overload;
 function check_exp(const c: Boolean; const e: lua_Integer): lua_Integer; overload;
 function check_exp(const c: Boolean; const e: lu_int): lu_int; overload;
 function check_exp(const c: Boolean; const e: Pointer): Pointer; overload;
+function check_exp(const c: Boolean; const e: Boolean): Boolean; overload;
 
 operator :=(B: lu_byte): Boolean; inline;
 operator :=(I: lu_int): Boolean; inline;
@@ -858,6 +859,12 @@ begin
 end;
 
 function check_exp(const c: Boolean; const e: Pointer): Pointer;
+begin
+  lua_assert(c);
+  Result := e;
+end;
+
+function check_exp(const c: Boolean; const e: Boolean): Boolean;
 begin
   lua_assert(c);
   Result := e;

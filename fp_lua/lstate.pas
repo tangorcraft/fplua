@@ -72,12 +72,9 @@ const
   CIST_LEQ       = (1 shl 7);  //* using __lt for __le */
   CIST_FIN       = (1 shl 8);  //* call is running a finalizer */
 
-//#define isLua(ci)       ((ci)->callstatus & CIST_LUA)
 function isLua(const ci: CallInfo): Boolean;
 
 (* assume that CIST_OAH has offset 0 and that 'v' is strictly 0/1 *)
-//#define setoah(st,v)    ((st) = ((st) & ~CIST_OAH) | (v))
-//#define getoah(st)      ((st) & CIST_OAH)
 procedure setoah(var st: Word; const v: Integer);
 function getoah(const st: Word): Word;
 
@@ -138,16 +135,19 @@ procedure luaE_shrinkCI(const L: lua_State);
 
 implementation
 
+//#define isLua(ci)       ((ci)->callstatus & CIST_LUA)
 function isLua(const ci: CallInfo): Boolean;
 begin
   Result := (ci.callstatus and CIST_LUA) <> 0;
 end;
 
+//#define setoah(st,v)    ((st) = ((st) & ~CIST_OAH) | (v))
 procedure setoah(var st: Word; const v: Integer);
 begin
   st := (st and not CIST_OAH) or v;
 end;
 
+//#define getoah(st)      ((st) & CIST_OAH)
 function getoah(const st: Word): Word;
 begin
   Result := st and CIST_OAH;

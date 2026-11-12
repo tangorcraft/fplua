@@ -81,10 +81,10 @@ function luaC_white(const g: global_State): lu_byte;
 ** 'condchangemem' is used only for heavy tests (forcing a full
 ** GC cycle on every opportunity)
 *)
-// TODO this macro have to be unwrapped where it used, at least it's not used often
 //#define luaC_condGC(L,pre,pos) \
 //        { if (G(L)->GCdebt > 0) { pre; luaC_step(L); pos;}; \
 //          condchangemem(L,pre,pos); }
+procedure luaC_condGC(var L: lua_State); // stub declaration, this macro need to be uwrapped
 
 (* more often than not, 'pre'/'pos' are empty *)
 procedure luaC_checkGC(var L: lua_State);
@@ -218,6 +218,11 @@ end;
 function luaC_white(const g: global_State): lu_byte;
 begin
   Result := g.currentwhite and WHITEBITS;
+end;
+
+procedure luaC_condGC(var L: lua_State);
+begin
+
 end;
 
 //#define luaC_checkGC(L)         luaC_condGC(L,(void)0,(void)0)
