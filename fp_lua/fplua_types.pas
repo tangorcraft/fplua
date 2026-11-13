@@ -131,9 +131,9 @@ type
     next: Integer; //* for chaining (offset for next node) */
   end;
 
-  TKey = record
-    nk: TKey_nk;
-    tvk: TValue;
+  TKey = record case Byte of
+    1:(nk: TKey_nk);
+    2:(tvk: TValue);
   end;
 
   Node = record
@@ -425,7 +425,7 @@ var
 {$endif}
 procedure api_check(const L: lua_State; const e: Boolean; const msg: PChar); inline;
 
-function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction;
+function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction; overload;
 
 (*
 ** macro to control inclusion of some hard tests on stack reallocation

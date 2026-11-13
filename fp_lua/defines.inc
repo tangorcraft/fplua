@@ -8,7 +8,7 @@
 {$define LUA_DEFINES}
 {$mode ObjFPC}{$H+}
 
-{$define DEBUG}
+{$define LUA_DEBUG}
 {$define HARDSTACKTESTS}
 {$define HARDMEMTESTS}
 

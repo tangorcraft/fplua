@@ -838,7 +838,7 @@ end;
 procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
 begin
   o1^ := o2^;
-  checkliveness(L,o1);
+  checkliveness(L,o1^.fields);
 end;
 
 //#define getstr(ts)  \
