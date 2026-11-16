@@ -80,7 +80,7 @@ function getoah(const st: Word): Word;
 
 
 //#define G(L)    (L->l_G)
-function G(const L: lua_State): Pglobal_State;
+function G(const L: Plua_State): Pglobal_State; inline;
 
 (*
 ** Union of all collectable objects (only for conversions)
@@ -153,9 +153,9 @@ begin
   Result := st and CIST_OAH;
 end;
 
-function G(const L: lua_State): Pglobal_State;
+function G(const L: Plua_State): Pglobal_State;
 begin
-  Result := L.l_G;
+  Result := L^.l_G;
 end;
 
 //#define gco2ts  \

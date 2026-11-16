@@ -25,7 +25,7 @@ implementation
 procedure api_incr_top(const L: Plua_State);
 begin
   inc(L^.top);
-  api_check(L^, L^.top <= L^.ci^.top, 'stack overflow');
+  api_check(L, L^.top <= L^.ci^.top, 'stack overflow');
 end;
 
 //#define adjustresults(L,nres) \
@@ -40,7 +40,7 @@ end;
 //                                "not enough elements in the stack")
 procedure api_checknelems(const L: Plua_State; const n: Integer);
 begin
-  api_check(L^, n < (L^.top - L^.ci^.func), 'not enough elements in the stack');
+  api_check(L, n < (L^.top - L^.ci^.func), 'not enough elements in the stack');
 end;
 
 end.

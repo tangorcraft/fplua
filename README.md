@@ -9,7 +9,7 @@ Lua is free software distributed under the terms of the MIT license, Copyright Â
 
 ## Work In Progress
 
-* Translating headers
+* Translating code
 
 # FP-Lua License
 

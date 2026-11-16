@@ -17,6 +17,7 @@ type
   PPGCObject = ^PGCObject;
 
   PUpVal = ^UpVal;
+  PPUpVal = ^PUpVal;
 
   PTValue = ^TValue;
   Plua_TValue = ^lua_TValue;
@@ -251,13 +252,15 @@ type
   CClosure = record
     header: ClosureHeader;
     f: lua_CFunction;
-    //upvalue[1] TValue;  //* list of upvalues */ TODO x2
+    //upvalue[1] TValue;  //* list of upvalues */
+    upvalue_0: TValue;
   end;
 
   LClosure = record
     header: ClosureHeader;
     p: PProto;
     //*upvals[1] UpVal;  //* list of upvalues */
+    upvals_0: PUpVal;
   end;
 
   Closure = record case Byte of
@@ -419,11 +422,11 @@ type
 //#define api_check(l,e,msg)      luai_apicheck(l,(e) && msg)
 {$ifdef LUA_USE_APICHECK}
 type
-  fplua_apicheck_fn = procedure (const L: lua_State; const e: Boolean; const msg: PChar);
+  fplua_apicheck_fn = procedure (const L: Plua_State; const e: Boolean; const msg: PChar);
 var
   fplua_apicheck: fplua_apicheck_fn;
 {$endif}
-procedure api_check(const L: lua_State; const e: Boolean; const msg: PChar); inline;
+procedure api_check(const L: Plua_State; const e: Boolean; const msg: PChar); inline;
 
 function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction; overload;
 
@@ -454,13 +457,16 @@ procedure condmovestack(const L: Plua_State);
 procedure condchangemem(const L: Plua_State);
 {$endif}
 
+function CClosure_upvalue(const v: PCClosure): PTValue; inline;
+function LClosure_upvals(const v: PLClosure): PPUpVal; inline;
+operator :=(O: PTValue) : TValuefields; inline;
 
 implementation
 
 uses
   lgc, ldo;
 
-procedure api_check(const L: lua_State; const e: Boolean; const msg: PChar);
+procedure api_check(const L: Plua_State; const e: Boolean; const msg: PChar);
 begin
   {$ifdef LUA_USE_APICHECK}
 
@@ -504,6 +510,21 @@ procedure condchangemem(const L: Plua_State);
 begin
   if L^.l_G^.gcrunning then
     luaC_fullgc(L, 0);
+end;
+
+function CClosure_upvalue(const v: PCClosure): PTValue;
+begin
+  Result := @v^.upvalue_0;
+end;
+
+function LClosure_upvals(const v: PLClosure): PPUpVal;
+begin
+  Result := @v^.upvals_0;
+end;
+
+operator := (O: PTValue): TValuefields;
+begin
+  Result := O^.fields;
 end;
 
 end.

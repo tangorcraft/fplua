@@ -213,7 +213,7 @@ procedure setdeadvalue(var obj: TValuefields);
 
 
 // TODO maybe need overloaded versions
-procedure setobj(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setobj(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 
 
 (*
@@ -221,16 +221,16 @@ procedure setobj(const L: Plua_State; var obj1,obj2: TValuefields);
 *)
 
 (* from stack to (same) stack *)
-procedure setobjs2s(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setobjs2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 (* to stack (not from same stack) *)
-procedure setobj2s(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setobj2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 procedure setsvalue2s(const L: Plua_State; var o: TValuefields; const x: PTString);
 procedure sethvalue2s(const L: Plua_State; var o: TValuefields; const x: PTable);
 //#define setptvalue2s    setptvalue // no such thing, not use anywhere (╯°□°)╯︵ ┻━┻
 (* from table to same table *)
-procedure setobjt2t(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setobjt2t(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 (* to new object *)
-procedure setobj2n(const L: Plua_State; var obj1,obj2: TValuefields);
+procedure setobj2n(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 procedure setsvalue2n(const L: Plua_State; var o: TValuefields; const x: PTString);
 
 (* to table (define it as an expression to be used in macros) *)
@@ -786,20 +786,20 @@ end;
 //#define setobj(L,obj1,obj2) \
 //        { TValue *io1=(obj1); *io1 = *(obj2); \
 //          (void)L; checkliveness(L,io1); }
-procedure setobj(const L: Plua_State; var obj1, obj2: TValuefields);
+procedure setobj(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 begin
   obj1 := obj2;
   checkliveness(L, obj1);
 end;
 
 //#define setobjs2s       setobj
-procedure setobjs2s(const L: Plua_State; var obj1, obj2: TValuefields);
+procedure setobjs2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setobj2s        setobj
-procedure setobj2s(const L: Plua_State; var obj1, obj2: TValuefields);
+procedure setobj2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 begin
   setobj(L, obj1, obj2);
 end;
@@ -817,13 +817,13 @@ begin
 end;
 
 //#define setobjt2t       setobj
-procedure setobjt2t(const L: Plua_State; var obj1, obj2: TValuefields);
+procedure setobjt2t(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setobj2n        setobj
-procedure setobj2n(const L: Plua_State; var obj1, obj2: TValuefields);
+procedure setobj2n(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
 begin
   setobj(L, obj1, obj2);
 end;

@@ -13,6 +13,7 @@
 {$define HARDMEMTESTS}
 
 {$inline on}
+{$pointermath on}
 
 {$i fplua_config.inc}
 {$i fplua_config_check.inc}
