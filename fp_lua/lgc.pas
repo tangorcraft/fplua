@@ -84,32 +84,32 @@ function luaC_white(const g: global_State): lu_byte;
 //#define luaC_condGC(L,pre,pos) \
 //        { if (G(L)->GCdebt > 0) { pre; luaC_step(L); pos;}; \
 //          condchangemem(L,pre,pos); }
-procedure luaC_condGC(var L: lua_State); // stub declaration, this macro need to be uwrapped
+procedure luaC_condGC(const L: Plua_State); // stub declaration, this macro need to be uwrapped
 
 (* more often than not, 'pre'/'pos' are empty *)
-procedure luaC_checkGC(var L: lua_State);
+procedure luaC_checkGC(const L: Plua_State);
 
-procedure luaC_barrier(var L: lua_State; const p: PGCObject; const v: TValuefields);
+procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: TValuefields);
 
-procedure luaC_barrierback(var L: lua_State; const p: PTable; const v: TValuefields);
+procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: TValuefields);
 
-procedure luaC_objbarrier(var L: lua_State; const p, o: PGCObject);
+procedure luaC_objbarrier(const L: Plua_State; const p, o: PGCObject);
 
-procedure luaC_upvalbarrier(var L: lua_State; const uv: PUpVal);
+procedure luaC_upvalbarrier(const L: Plua_State; const uv: PUpVal);
 
 //TODO
-procedure luaC_fix(var L: lua_State; const o: PGCObject);
-procedure luaC_freeallobjects(var L: lua_State);
-procedure luaC_step(var L: lua_State);
-procedure luaC_runtilstate(var L: lua_State; const statesmask: Integer);
-procedure luaC_fullgc(var L: lua_State; const isemergency: Integer);
-function luaC_newobj(var L: lua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
+procedure luaC_fix(const L: Plua_State; const o: PGCObject);
+procedure luaC_freeallobjects(const L: Plua_State);
+procedure luaC_step(const L: Plua_State);
+procedure luaC_runtilstate(const L: Plua_State; const statesmask: Integer);
+procedure luaC_fullgc(const L: Plua_State; const isemergency: Integer);
+function luaC_newobj(const L: Plua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
 // these 3 don't need to be exposed in interface
-//procedure luaC_barrier_(var L: lua_State; const o, v: PGCObject);
-//procedure luaC_barrierback_(var L: lua_State; const o: PTable);
-//procedure luaC_upvalbarrier_(var L: lua_State; const uv: PUpVal);
-procedure luaC_checkfinalizer(var L: lua_State; const o: PGCObject; const mt: PTable);
-procedure luaC_upvdeccount(var L: lua_State; const uv: PUpVal);
+//procedure luaC_barrier_(const L: Plua_State; const o, v: PGCObject);
+//procedure luaC_barrierback_(const L: Plua_State; const o: PTable);
+//procedure luaC_upvalbarrier_(const L: Plua_State; const uv: PUpVal);
+procedure luaC_checkfinalizer(const L: Plua_State; const o: PGCObject; const mt: PTable);
+procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 
 implementation
 
@@ -220,34 +220,34 @@ begin
   Result := g.currentwhite and WHITEBITS;
 end;
 
-procedure luaC_condGC(var L: lua_State);
+procedure luaC_condGC(const L: Plua_State);
 begin
 
 end;
 
 //#define luaC_checkGC(L)         luaC_condGC(L,(void)0,(void)0)
-procedure luaC_checkGC(var L: lua_State);
+procedure luaC_checkGC(const L: Plua_State);
 begin
-  if (L.l_G^.GCdebt > 0) then
+  if (L^.l_G^.GCdebt > 0) then
     luaC_step(L);
   {$ifdef HARDMEMTESTS}
   //condchangemem(L);
-  if (L.l_G^.gcrunning) then
+  if (L^.l_G^.gcrunning) then
     luaC_fullgc(L, 0);
   {$endif}
 end;
 
-procedure luaC_barrier_(var L: lua_State; const o, v: PGCObject);
+procedure luaC_barrier_(const L: Plua_State; const o, v: PGCObject);
 begin
 
 end;
 
-procedure luaC_barrierback_(var L: lua_State; const o: PTable);
+procedure luaC_barrierback_(const L: Plua_State; const o: PTable);
 begin
 
 end;
 
-procedure luaC_upvalbarrier_(var L: lua_State; const uv: PUpVal);
+procedure luaC_upvalbarrier_(const L: Plua_State; const uv: PUpVal);
 begin
 
 end;
@@ -255,7 +255,7 @@ end;
 //#define luaC_barrier(L,p,v) (  \
 //        (iscollectable(v) && isblack(p) && iswhite(gcvalue(v))) ?  \
 //        luaC_barrier_(L,obj2gco(p),gcvalue(v)) : cast_void(0))
-procedure luaC_barrier(var L: lua_State; const p: PGCObject; const v: TValuefields);
+procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: TValuefields);
 begin
   if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
     luaC_barrier_(L, p, gcvalue(v));
@@ -264,7 +264,7 @@ end;
 //#define luaC_barrierback(L,p,v) (  \
 //        (iscollectable(v) && isblack(p) && iswhite(gcvalue(v))) ? \
 //        luaC_barrierback_(L,p) : cast_void(0))
-procedure luaC_barrierback(var L: lua_State; const p: PTable; const v: TValuefields);
+procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: TValuefields);
 begin
   if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
     luaC_barrierback_(L, p);
@@ -273,7 +273,7 @@ end;
 //#define luaC_objbarrier(L,p,o) (  \
 //        (isblack(p) && iswhite(o)) ? \
 //        luaC_barrier_(L,obj2gco(p),obj2gco(o)) : cast_void(0))
-procedure luaC_objbarrier(var L: lua_State; const p, o: PGCObject);
+procedure luaC_objbarrier(const L: Plua_State; const p, o: PGCObject);
 begin
   if isblack(p^.header) and iswhite(o^.header) then
     luaC_barrier_(L, p, o);
@@ -282,48 +282,48 @@ end;
 //#define luaC_upvalbarrier(L,uv) ( \
 //        (iscollectable((uv)->v) && !upisopen(uv)) ? \
 //         luaC_upvalbarrier_(L,uv) : cast_void(0))
-procedure luaC_upvalbarrier(var L: lua_State; const uv: PUpVal);
+procedure luaC_upvalbarrier(const L: Plua_State; const uv: PUpVal);
 begin
   if iscollectable(uv^.v^.fields) and not upisopen(uv^) then
     luaC_upvalbarrier_(L,uv);
 end;
 
-procedure luaC_fix(var L: lua_State; const o: PGCObject);
+procedure luaC_fix(const L: Plua_State; const o: PGCObject);
 begin
 
 end;
 
-procedure luaC_freeallobjects(var L: lua_State);
+procedure luaC_freeallobjects(const L: Plua_State);
 begin
 
 end;
 
-procedure luaC_step(var L: lua_State);
+procedure luaC_step(const L: Plua_State);
 begin
 
 end;
 
-procedure luaC_runtilstate(var L: lua_State; const statesmask: Integer);
+procedure luaC_runtilstate(const L: Plua_State; const statesmask: Integer);
 begin
 
 end;
 
-procedure luaC_fullgc(var L: lua_State; const isemergency: Integer);
+procedure luaC_fullgc(const L: Plua_State; const isemergency: Integer);
 begin
 
 end;
 
-function luaC_newobj(var L: lua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
+function luaC_newobj(const L: Plua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
 begin
 
 end;
 
-procedure luaC_checkfinalizer(var L: lua_State; const o: PGCObject; const mt: PTable);
+procedure luaC_checkfinalizer(const L: Plua_State; const o: PGCObject; const mt: PTable);
 begin
 
 end;
 
-procedure luaC_upvdeccount(var L: lua_State; const uv: PUpVal);
+procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 begin
 
 end;

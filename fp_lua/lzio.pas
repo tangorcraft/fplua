@@ -43,9 +43,9 @@ procedure luaZ_buffremove(const buff: PMbuffer; const i: SizeUInt);
 procedure luaZ_resetbuffer(const buff: PMbuffer);
 
 
-procedure luaZ_resizebuffer(var L: lua_State; var buff: Mbuffer; const size: SizeUInt);
+procedure luaZ_resizebuffer(const L: Plua_State; var buff: Mbuffer; const size: SizeUInt);
 
-procedure luaZ_freebuffer(var L: lua_State; var buff: Mbuffer);
+procedure luaZ_freebuffer(const L: Plua_State; var buff: Mbuffer);
 
 
 {  TODO
@@ -53,7 +53,7 @@ LUAI_FUNC void luaZ_init (lua_State *L, ZIO *z, lua_Reader reader,
                                         void *data);
 LUAI_FUNC size_t luaZ_read (ZIO* z, void *b, size_t n); /* read next n bytes */
 }
-procedure luaZ_init(var L: lua_State; var z: Zio; const reader: lua_Reader; const data: Pointer);
+procedure luaZ_init(const L: Plua_State; var z: Zio; const reader: lua_Reader; const data: Pointer);
 function luaZ_read(var z: Zio; const b: Pointer; const n: SizeUInt): SizeUInt;
 
 //* --------- Private Part ------------------ */
@@ -126,19 +126,19 @@ end;
 //        ((buff)->buffer = luaM_reallocvchar(L, (buff)->buffer, \
 //                                (buff)->buffsize, size), \
 //        (buff)->buffsize = size)
-procedure luaZ_resizebuffer(var L: lua_State; var buff: Mbuffer; const size: SizeUInt);
+procedure luaZ_resizebuffer(const L: Plua_State; var buff: Mbuffer; const size: SizeUInt);
 begin
   buff.buffer := luaM_reallocvchar(L, buff.buffer, buff.buffsize, size);
   buff.buffsize := size;
 end;
 
 //#define luaZ_freebuffer(L, buff)        luaZ_resizebuffer(L, buff, 0)
-procedure luaZ_freebuffer(var L: lua_State; var buff: Mbuffer);
+procedure luaZ_freebuffer(const L: Plua_State; var buff: Mbuffer);
 begin
   luaZ_resizebuffer(L, buff, 0);
 end;
 
-procedure luaZ_init(var L: lua_State; var z: Zio; const reader: lua_Reader;
+procedure luaZ_init(const L: Plua_State; var z: Zio; const reader: lua_Reader;
   const data: Pointer);
 begin
 

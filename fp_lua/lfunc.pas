@@ -41,13 +41,13 @@ LUAI_FUNC void luaF_freeproto (lua_State *L, Proto *f);
 LUAI_FUNC const char *luaF_getlocalname (const Proto *func, int local_number,
                                          int pc);
 }
-function luaF_newproto(var L: lua_State): PProto;
-function luaF_newCclosure(var L: lua_State; const nelems: Integer): PCClosure;
-function luaF_newLclosure(var L: lua_State; const nelems: Integer): PLClosure;
-procedure luaF_initupvals(var L: lua_State; var cl: LClosure);
-function luaF_findupval(var L: lua_State; const level: StkId): PUpVal;
-procedure luaF_close(var L: lua_State; const level: StkId);
-procedure luaF_freeproto(var L: lua_State; const f: PProto);
+function luaF_newproto(const L: Plua_State): PProto;
+function luaF_newCclosure(const L: Plua_State; const nelems: Integer): PCClosure;
+function luaF_newLclosure(const L: Plua_State; const nelems: Integer): PLClosure;
+procedure luaF_initupvals(const L: Plua_State; var cl: LClosure);
+function luaF_findupval(const L: Plua_State; const level: StkId): PUpVal;
+procedure luaF_close(const L: Plua_State; const level: StkId);
+procedure luaF_freeproto(const L: Plua_State; const f: PProto);
 function luaF_getlocalname(const func: PProto; const local_number, pc: Integer): PChar;
 
 implementation
@@ -78,37 +78,37 @@ begin
   Result := (up.v <> @(up.value));
 end;
 
-function luaF_newproto(var L: lua_State): PProto;
+function luaF_newproto(const L: Plua_State): PProto;
 begin
 
 end;
 
-function luaF_newCclosure(var L: lua_State; const nelems: Integer): PCClosure;
+function luaF_newCclosure(const L: Plua_State; const nelems: Integer): PCClosure;
 begin
 
 end;
 
-function luaF_newLclosure(var L: lua_State; const nelems: Integer): PLClosure;
+function luaF_newLclosure(const L: Plua_State; const nelems: Integer): PLClosure;
 begin
 
 end;
 
-procedure luaF_initupvals(var L: lua_State; var cl: LClosure);
+procedure luaF_initupvals(const L: Plua_State; var cl: LClosure);
 begin
 
 end;
 
-function luaF_findupval(var L: lua_State; const level: StkId): PUpVal;
+function luaF_findupval(const L: Plua_State; const level: StkId): PUpVal;
 begin
 
 end;
 
-procedure luaF_close(var L: lua_State; const level: StkId);
+procedure luaF_close(const L: Plua_State; const level: StkId);
 begin
 
 end;
 
-procedure luaF_freeproto(var L: lua_State; const f: PProto);
+procedure luaF_freeproto(const L: Plua_State; const f: PProto);
 begin
 
 end;

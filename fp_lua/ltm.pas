@@ -40,12 +40,12 @@ function luaT_objtypename(const L: Plua_State; const o: PTValue): PChar;
 function luaT_gettm(const events: PTable; const event: TMS; const ename: PTString): PTValue;
 function luaT_gettmbyobj(const L: Plua_State; const o: PTValue; const event: TMS): PChar;
 
-procedure luaT_init(var L: lua_State);
+procedure luaT_init(const L: Plua_State);
 
-procedure luaT_callTM(var L: lua_State; const f, p1, p2, p3: PTValue; const hasres: lu_int);
-function luaT_callbinTM(var L: lua_State; const p1, p2: PTValue; const res: StkId; const event: TMS): Integer;
-procedure luaT_trybinTM(var L: lua_State; const p1, p2: PTValue; const res: StkId; const event: TMS);
-function luaT_callorderTM(var L: lua_State; const p1, p2: PTValue; const event: TMS): Integer;
+procedure luaT_callTM(const L: Plua_State; const f, p1, p2, p3: PTValue; const hasres: lu_int);
+function luaT_callbinTM(const L: Plua_State; const p1, p2: PTValue; const res: StkId; const event: TMS): Integer;
+procedure luaT_trybinTM(const L: Plua_State; const p1, p2: PTValue; const res: StkId; const event: TMS);
+function luaT_callorderTM(const L: Plua_State; const p1, p2: PTValue; const event: TMS): Integer;
 
 implementation
 
@@ -98,29 +98,29 @@ begin
 
 end;
 
-procedure luaT_init(var L: lua_State);
+procedure luaT_init(const L: Plua_State);
 begin
 
 end;
 
-procedure luaT_callTM(var L: lua_State; const f, p1, p2, p3: PTValue; const hasres: lu_int);
+procedure luaT_callTM(const L: Plua_State; const f, p1, p2, p3: PTValue; const hasres: lu_int);
 begin
 
 end;
 
-function luaT_callbinTM(var L: lua_State; const p1, p2: PTValue; const res: StkId;
+function luaT_callbinTM(const L: Plua_State; const p1, p2: PTValue; const res: StkId;
   const event: TMS): Integer;
 begin
 
 end;
 
-procedure luaT_trybinTM(var L: lua_State; const p1, p2: PTValue; const res: StkId;
+procedure luaT_trybinTM(const L: Plua_State; const p1, p2: PTValue; const res: StkId;
   const event: TMS);
 begin
 
 end;
 
-function luaT_callorderTM(var L: lua_State; const p1, p2: PTValue; const event: TMS): Integer;
+function luaT_callorderTM(const L: Plua_State; const p1, p2: PTValue; const event: TMS): Integer;
 begin
 
 end;

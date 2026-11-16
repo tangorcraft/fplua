@@ -313,7 +313,7 @@ begin
       Result := False
     else
     begin
-      luaC_barrierback(L^, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
       setobj2t(L, slot, v);
       Result := True;
     end;
@@ -335,7 +335,7 @@ begin
       Result := False
     else
     begin
-      luaC_barrierback(L^, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
       setobj2t(L, slot, v);
       Result := True;
     end;
@@ -357,7 +357,7 @@ begin
       Result := False
     else
     begin
-      luaC_barrierback(L^, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
       setobj2t(L, slot, v);
       Result := True;
     end;

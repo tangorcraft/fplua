@@ -390,14 +390,14 @@ procedure luai_userstateyield(const L: Plua_State; const n: Integer);
 //#if !defined(luai_numidiv)
 //#define luai_numidiv(L,a,b)     ((void)L, l_floor(luai_numdiv(L,a,b)))
 //#endif
-function luai_numidiv(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numidiv(const L: Plua_State; const a, b: lua_Number): lua_Number;
 
 (* float division *)
 // TODO
 //#if !defined(luai_numdiv)
 //#define luai_numdiv(L,a,b)      ((a)/(b))
 //#endif
-function luai_numdiv(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numdiv(const L: Plua_State; const a, b: lua_Number): lua_Number;
 
 (*
 ** modulo: defined as 'a - floor(a/b)*b'; this definition gives NaN when
@@ -411,13 +411,13 @@ function luai_numdiv(var L: lua_State; const a, b: lua_Number): lua_Number;
 //#define luai_nummod(L,a,b,m)  \
   { (m) = l_mathop(fmod)(a,b); if ((m)*(b) < 0) (m) += (b); }
 //#endif
-procedure luai_nummod(var L: lua_State; const a, b: lua_Number; var m: lua_Number);
+procedure luai_nummod(const L: Plua_State; const a, b: lua_Number; var m: lua_Number);
 
 (* exponentiation *)
 //#if !defined(luai_numpow)
 //#define luai_numpow(L,a,b)      ((void)L, l_mathop(pow)(a,b))
 //#endif
-function luai_numpow(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numpow(const L: Plua_State; const a, b: lua_Number): lua_Number;
 
 (* the others are quite standard operations *)
 {#if !defined(luai_numadd)
@@ -430,10 +430,10 @@ function luai_numpow(var L: lua_State; const a, b: lua_Number): lua_Number;
 #define luai_numle(a,b)         ((a)<=(b))
 #define luai_numisnan(a)        (!luai_numeq((a), (a)))
 #endif}
-function luai_numadd(var L: lua_State; const a, b: lua_Number): lua_Number;
-function luai_numsub(var L: lua_State; const a, b: lua_Number): lua_Number;
-function luai_nummul(var L: lua_State; const a, b: lua_Number): lua_Number;
-function luai_numunm(var L: lua_State; const a: lua_Number): lua_Number;
+function luai_numadd(const L: Plua_State; const a, b: lua_Number): lua_Number;
+function luai_numsub(const L: Plua_State; const a, b: lua_Number): lua_Number;
+function luai_nummul(const L: Plua_State; const a, b: lua_Number): lua_Number;
+function luai_numunm(const L: Plua_State; const a: lua_Number): lua_Number;
 function luai_numeq(const a, b: lua_Number): Boolean;
 function luai_numlt(const a, b: lua_Number): Boolean;
 function luai_numle(const a, b: lua_Number): Boolean;
@@ -1143,20 +1143,20 @@ begin
 end;
 
 //#define luai_numidiv(L,a,b)     ((void)L, l_floor(luai_numdiv(L,a,b)))
-function luai_numidiv(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numidiv(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := l_floor(a / b);
 end;
 
 //#define luai_numdiv(L,a,b)      ((a)/(b))
-function luai_numdiv(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numdiv(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := a / b;
 end;
 
 //#define luai_nummod(L,a,b,m)  \
   { (m) = l_mathop(fmod)(a,b); if ((m)*(b) < 0) (m) += (b); }
-procedure luai_nummod(var L: lua_State; const a, b: lua_Number; var m: lua_Number);
+procedure luai_nummod(const L: Plua_State; const a, b: lua_Number; var m: lua_Number);
 begin
   m := FMod(a, b);
   if (m * b) < 0 then
@@ -1164,27 +1164,27 @@ begin
 end;
 
 //#define luai_numpow(L,a,b)      ((void)L, l_mathop(pow)(a,b))
-function luai_numpow(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numpow(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := Power(a, b);
 end;
 
-function luai_numadd(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numadd(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := a + b;
 end;
 
-function luai_numsub(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_numsub(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := a - b;
 end;
 
-function luai_nummul(var L: lua_State; const a, b: lua_Number): lua_Number;
+function luai_nummul(const L: Plua_State; const a, b: lua_Number): lua_Number;
 begin
   Result := a * b;
 end;
 
-function luai_numunm(var L: lua_State; const a: lua_Number): lua_Number;
+function luai_numunm(const L: Plua_State; const a: lua_Number): lua_Number;
 begin
   Result := -a;
 end;

@@ -440,7 +440,7 @@ function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction; ove
 //#endif
 {$ifdef HARDSTACKTESTS}
 // a "common" version without pre/pos
-procedure condmovestack(var L: lua_State);
+procedure condmovestack(const L: Plua_State);
 {$endif}
 
 //#if !defined(HARDMEMTESTS)
@@ -451,7 +451,7 @@ procedure condmovestack(var L: lua_State);
 //#endif
 {$ifdef HARDMEMTESTS}
 // a "common" version without pre/pos
-procedure condchangemem(var L: lua_State);
+procedure condchangemem(const L: Plua_State);
 {$endif}
 
 
@@ -490,19 +490,19 @@ end;
 ///* realloc stack keeping its size */
 //#define condmovestack(L,pre,pos)  \
 //        { int sz_ = (L)->stacksize; pre; luaD_reallocstack((L), sz_); pos; }
-procedure condmovestack(var L: lua_State);
+procedure condmovestack(const L: Plua_State);
 var
   sz_: Integer;
 begin
-  sz_ := L.stacksize;
+  sz_ := L^.stacksize;
   luaD_reallocstack(L, sz_);
 end;
 
 //#define condchangemem(L,pre,pos)  \
 //        { if (G(L)->gcrunning) { pre; luaC_fullgc(L, 0); pos; } }
-procedure condchangemem(var L: lua_State);
+procedure condchangemem(const L: Plua_State);
 begin
-  if L.l_G^.gcrunning then
+  if L^.l_G^.gcrunning then
     luaC_fullgc(L, 0);
 end;
 
