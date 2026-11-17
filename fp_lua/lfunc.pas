@@ -28,7 +28,7 @@ const
   MAXUPVAL     = 255;
 
 
-function upisopen(const up: UpVal): Boolean;
+function upisopen(const up: PUpVal): Boolean;
 
 { TODO
 LUAI_FUNC Proto *luaF_newproto (lua_State *L);
@@ -73,9 +73,9 @@ begin
 end;
 
 //#define upisopen(up)    ((up)->v != &(up)->u.value)
-function upisopen(const up: UpVal): Boolean;
+function upisopen(const up: PUpVal): Boolean;
 begin
-  Result := (up.v <> @(up.value));
+  Result := (up^.v <> @(up^.u_value));
 end;
 
 function luaF_newproto(const L: Plua_State): PProto;

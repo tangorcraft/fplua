@@ -20,6 +20,7 @@ type
   PPUpVal = ^PUpVal;
 
   PTValue = ^TValue;
+  PPTValue = ^PTValue;
   Plua_TValue = ^lua_TValue;
 
   PTKey = ^TKey;
@@ -36,6 +37,7 @@ type
   PPProto = ^PProto;
 
   PCClosure = ^CClosure;
+  PPCClosure = ^PCClosure;
   PLClosure = ^LClosure;
   PClosure = ^Closure;
 
@@ -121,10 +123,10 @@ type
     refcount: lu_mem; //* reference counter */
     case Byte of
     1:( //* (when open) */
-      next: PUpVal; //* linked list */
-      touched: Integer; //* mark to avoid cycles with dead threads */
+      u_open_next: PUpVal; //* linked list */
+      u_open_touched: Integer; //* mark to avoid cycles with dead threads */
     );
-    2:(value: TValue) //* the value (when closed) */
+    2:(u_value: TValue) //* the value (when closed) */
   end;
 
   TKey_nk = record

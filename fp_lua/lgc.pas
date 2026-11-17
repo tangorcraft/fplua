@@ -285,7 +285,7 @@ end;
 //         luaC_upvalbarrier_(L,uv) : cast_void(0))
 procedure luaC_upvalbarrier(const L: Plua_State; const uv: PUpVal);
 begin
-  if iscollectable(uv^.v) and not upisopen(uv^) then
+  if iscollectable(uv^.v) and not upisopen(uv) then
     luaC_upvalbarrier_(L,uv);
 end;
 

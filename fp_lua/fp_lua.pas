@@ -165,7 +165,7 @@ function lua_rawgeti(const L: Plua_State; const idx: Integer; const n: lua_Integ
 function lua_rawgetp(const L: Plua_State; const idx: Integer; const p: Pointer): Integer;
 
 procedure lua_createtable(const L: Plua_State; const narr, nrec: Integer);
-function lua_newuserdata(const L: Plua_State; const sz: SizeUInt): Pointer;
+function lua_newuserdata(const L: Plua_State; const size: SizeUInt): Pointer;
 function lua_getmetatable(const L: Plua_State; const objindex: Integer): Integer;
 function lua_getuservalue(const L: Plua_State; const idx: Integer): Integer;
 
@@ -1257,9 +1257,17 @@ begin
   lua_unlock(L);
 end;
 
-function lua_newuserdata(const L: Plua_State; const sz: SizeUInt): Pointer;
+function lua_newuserdata(const L: Plua_State; const size: SizeUInt): Pointer;
+var
+  u: PUdata;
 begin
-
+  lua_lock(L);
+  u := luaS_newudata(L, size);
+  setuvalue(L, L^.top, u);
+  api_incr_top(L);
+  luaC_checkGC(L);
+  lua_unlock(L);
+  Result := getudatamem(u);
 end;
 
 function lua_getmetatable(const L: Plua_State; const objindex: Integer): Integer;
@@ -1723,22 +1731,55 @@ end;
 
 function lua_error(const L: Plua_State): Integer;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  luaG_errormsg(L);
+  //* code unreachable; will unlock when control actually leaves the kernel */
+  Result := 0;  //* to avoid warnings */
 end;
 
 function lua_next(const L: Plua_State; const idx: Integer): Integer;
+var
+  t: StkId;
+  more: Integer;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  api_check(L, ttistable(t), 'table expected');
+  more := luaH_next(L, hvalue(t), L^.top - 1);
+  if (more <> 0) then
+    api_incr_top(L)
+  else  //* no more elements */
+    L^.top := L^.top - 1;  //* remove key */
+  lua_unlock(L);
+  Result := more;
 end;
 
 procedure lua_concat(const L: Plua_State; const n: Integer);
 begin
-
+  lua_lock(L);
+  api_checknelems(L, n);
+  if (n >= 2) then
+    luaV_concat(L, n)
+  else if (n = 0) then
+  begin  //* push empty string */
+    setsvalue2s(L, L^.top, luaS_newlstr(L, '', 0));
+    api_incr_top(L);
+  end;
+  //* else n == 1; nothing to do */
+  luaC_checkGC(L);
+  lua_unlock(L);
 end;
 
 procedure lua_len(const L: Plua_State; const idx: Integer);
+var
+  t: StkId;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  luaV_objlen(L, L^.top, t);
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
 function lua_stringtonumber(const L: Plua_State; const s: PChar): SizeUInt;
@@ -1750,12 +1791,18 @@ end;
 
 function lua_getallocf(const L: Plua_State; const ud: PPointer): lua_Alloc;
 begin
-
+  lua_lock(L);
+  if (ud <> nil) then ud^ := G(L)^.ud;
+  Result := G(L)^.frealloc;
+  lua_unlock(L);
 end;
 
 procedure lua_setallocf(const L: Plua_State; const f: lua_Alloc; const ud: Pointer);
 begin
-
+  lua_lock(L);
+  G(L)^.ud := ud;
+  G(L)^.frealloc := f;
+  lua_unlock(L);
 end;
 
 //#define lua_getextraspace(L)    ((void *)((char *)(L) - LUA_EXTRASPACE))
@@ -2091,24 +2138,137 @@ begin
 
 end;
 
-function lua_getupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
+//static const char *aux_upvalue (StkId fi, int n, TValue **val,
+//                                CClosure **owner, UpVal **uv)
+function aux_upvalue(const fi: StkId; const n: Integer; out val: PTValue;
+  const owner: PPCClosure; const uv: PPUpVal): PChar;
+var
+  fc: PCClosure;
+  fl: PLClosure;
+  name: PTString;
+  p: PProto;
 begin
+  case (ttype(fi)) of
+    LUA_TCCL: begin  //* C closure */
+      fc := clCvalue(fi);
+      if not((1 <= n) and (n <= fc^.header.nupvalues)) then
+        Exit(nil);
+      val := CClosure_upvalueN(fc, n-1);
+      if (owner <> nil) then
+        owner^ := fc;
+      Result := '';
+    end;
+    LUA_TLCL: begin  //* Lua closure */
+      fl := clLvalue(fi);
+      p := fl^.p;
+      if not((1 <= n) and (n <= p^.sizeupvalues)) then
+        Exit(nil);
+      val := LClosure_upvalsN(fl, n-1)^.v;
+      if (uv <> nil) then
+        uv^ := LClosure_upvalsN(fl, n - 1);
+      name := p^.upvalues[n-1].name;
+      if (name = Nil) then
+        Result := '(*no name)'
+      else
+        Result := getstr(name);
+    end;
+    else
+      Result := Nil;  //* not a closure */
+  end;
+end;
 
+
+function lua_getupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
+var
+  val: PTValue;
+begin
+  //val := Nil;  //* to avoid warnings */
+  lua_lock(L);
+  Result := aux_upvalue(index2addr(L, funcindex), n, val, Nil, Nil);
+  if (Result <> nil) then
+  begin
+    setobj2s(L, L^.top, val);
+    api_incr_top(L);
+  end;
+  lua_unlock(L);
 end;
 
 function lua_setupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
+var
+  val: PTValue;
+  owner: PCClosure;
+  uv: PUpVal;
+  fi: StkId;
 begin
+  //val := Nil;  //* to avoid warnings */
+  owner := Nil;
+  uv := Nil;
+  lua_lock(L);
+  fi := index2addr(L, funcindex);
+  api_checknelems(L, 1);
+  Result := aux_upvalue(fi, n, val, @owner, @uv);
+  if (Result <> nil) then
+  begin
+    dec(L^.top);
+    setobj(L, val, L^.top);
+    if (owner <> nil) then
+      luaC_barrier(L, obj2gco(owner), L^.top)
+    else if (uv <> nil) then
+      luaC_upvalbarrier(L, uv);
+  end;
+  lua_unlock(L);
+end;
 
+//static UpVal **getupvalref (lua_State *L, int fidx, int n)
+function getupvalref(const L: Plua_State; const fidx, n: Integer): PPUpVal;
+var
+  f: PLClosure;
+  fi: StkId;
+begin
+  fi := index2addr(L, fidx);
+  api_check(L, ttisLclosure(fi), 'Lua function expected');
+  f := clLvalue(fi);
+  api_check(L, (1 <= n) and (n <= f^.p^.sizeupvalues), 'invalid upvalue index');
+  Result := LClosure_upvals(f) + (n - 1);  //* get its upvalue pointer */
 end;
 
 function lua_upvalueid(const L: Plua_State; const fidx, n: Integer): Pointer;
+var
+  fi: StkId;
+  f: PCClosure;
 begin
-
+  fi := index2addr(L, fidx);
+  case (ttype(fi)) of
+    LUA_TLCL:  //* lua closure */
+      Result := getupvalref(L, fidx, n)^;
+    LUA_TCCL:  //* C closure */
+    begin
+      f := clCvalue(fi);
+      api_check(L, (1 <= n) and (n <= f^.header.nupvalues), 'invalid upvalue index');
+      Result := CClosure_upvalueN(f, n - 1);
+    end;
+    else
+    begin
+      api_check(L, 0, 'closure expected');
+      Result := Nil;
+    end;
+  end;
 end;
 
 procedure lua_upvaluejoin(const L: Plua_State; const fidx1, n1, fidx2, n2: Integer);
+var
+  up1, up2: PPUpVal;
 begin
-
+  up1 := getupvalref(L, fidx1, n1);
+  up2 := getupvalref(L, fidx2, n2);
+  if (up1^ = up2^) then
+    Exit;
+  luaC_upvdeccount(L, up1^);
+  up1^ := up2^;
+  inc((up1^)^.refcount);
+  if (upisopen(up1^)) then
+    (up1^)^.u_open_touched := 1;
+  luaC_upvalbarrier(L, up1^);
 end;
 
 procedure lua_sethook(const L: Plua_State; const func: lua_Hook; const mask, count: Integer);
