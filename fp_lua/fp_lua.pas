@@ -86,8 +86,8 @@ function lua_isuserdata(const L: Plua_State; const idx: Integer): lu_int;
 function lua_type(const L: Plua_State; const idx: Integer): lu_int;
 function lua_typename(const L: Plua_State; const tp: Integer): PChar;
 
-function lua_tonumberx(const L: Plua_State; const idx: Integer; const isnum: PInteger): lua_Number;
-function lua_tointegerx(const L: Plua_State; const idx: Integer; const isnum: PInteger): lua_Integer;
+function lua_tonumberx(const L: Plua_State; const idx: Integer; const pisnum: PInteger): lua_Number;
+function lua_tointegerx(const L: Plua_State; const idx: Integer; const pisnum: PInteger): lua_Integer;
 function lua_toboolean(const L: Plua_State; const idx: Integer): lu_int;
 function lua_tolstring(const L: Plua_State; const idx: Integer; const len: PSizeUInt): PChar;
 function lua_rawlen(const L: Plua_State; const idx: Integer): SizeUInt;
@@ -763,28 +763,44 @@ begin
 end;
 
 function lua_isnumber(const L: Plua_State; const idx: Integer): lu_int;
+var
+  n: lua_Number;
+  o: PTValue;
 begin
-
+  o := index2addr(L, idx);
+  Result := tonumber(o, &n);
 end;
 
 function lua_isstring(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: PTValue;
 begin
-
+  o := index2addr(L, idx);
+  Result := (ttisstring(o) or cvt2str(o));
 end;
 
 function lua_iscfunction(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  Result := (ttislcf(o) or ttisCclosure(o));
 end;
 
 function lua_isinteger(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  Result := ttisinteger(o);
 end;
 
 function lua_isuserdata(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: PTValue;
 begin
-
+  o := index2addr(L, idx);
+  Result := (ttisfulluserdata(o) or ttislightuserdata(o));
 end;
 
 function lua_type(const L: Plua_State; const idx: Integer): lu_int;
@@ -800,69 +816,182 @@ end;
 
 function lua_typename(const L: Plua_State; const tp: Integer): PChar;
 begin
-
+  //UNUSED(L);
+  api_check(L, (LUA_TNONE <= tp) and (tp < LUA_NUMTAGS), 'invalid tag');
+  Result := ttypename(tp);
 end;
 
 function lua_tonumberx(const L: Plua_State; const idx: Integer;
-  const isnum: PInteger): lua_Number;
+  const pisnum: PInteger): lua_Number;
+var
+  o: PTValue;
+  isnum: Integer;
 begin
-
+  o := index2addr(L, idx);
+  isnum := tonumber(o, @Result);
+  if (isnum = 0) then
+    Result := 0;  //* call to 'tonumber' may change 'n' even if it fails */
+  if (pisnum <> nil) then
+    pisnum^ := isnum;
 end;
 
 function lua_tointegerx(const L: Plua_State; const idx: Integer;
-  const isnum: PInteger): lua_Integer;
+  const pisnum: PInteger): lua_Integer;
+var
+  o: PTValue;
+  isnum: Integer;
 begin
-
+  o := index2addr(L, idx);
+  isnum := tointeger(o, @Result);
+  if (isnum = 0) then
+    Result := 0;  //* call to 'tointeger' may change 'n' even if it fails */
+  if (pisnum <> nil) then
+    pisnum^ := isnum;
 end;
 
 function lua_toboolean(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: PTValue;
 begin
-
+  o := index2addr(L, idx);
+  Result := not l_isfalse(o);
 end;
 
 function lua_tolstring(const L: Plua_State; const idx: Integer; const len: PSizeUInt): PChar;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  if (not ttisstring(o)) then begin
+    if (not cvt2str(o)) then
+    begin  //* not convertible? */
+      if (len <> nil) then
+        len^ := 0;
+      Exit(Nil);
+    end;
+    lua_lock(L);  //* 'luaO_tostring' may create a new string */
+    luaO_tostring(L, o);
+    luaC_checkGC(L);
+    o := index2addr(L, idx);  //* previous call may reallocate the stack */
+    lua_unlock(L);
+  end;
+  if (len <> Nil) then
+    len^ := vslen(o);
+  Result := svalue(o);
 end;
 
 function lua_rawlen(const L: Plua_State; const idx: Integer): SizeUInt;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  case (ttype(o)) of
+    LUA_TSHRSTR: Result := tsvalue(o)^.shrlen;
+    LUA_TLNGSTR: Result := tsvalue(o)^.u_lnglen;
+    LUA_TUSERDATA: Result := uvalue(o)^.len;
+    LUA_TTABLE: Result := luaH_getn(hvalue(o));
+    else Result := 0;
+  end;
 end;
 
 function lua_tocfunction(const L: Plua_State; const idx: Integer): lua_CFunction;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  if (ttislcf(o)) then
+    Result := fvalue(o)
+  else if (ttisCclosure(o))
+    Result := clCvalue(o)^.f;
+  else
+    Result := Nil;  //* not a C function */
 end;
 
 function lua_touserdata(const L: Plua_State; const idx: Integer): Pointer;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  case (ttnov(o)) of
+    LUA_TUSERDATA: Result := getudatamem(uvalue(o));
+    LUA_TLIGHTUSERDATA: Result := pvalue(o);
+    else Result := Nil;
+  end;
 end;
 
 function lua_tothread(const L: Plua_State; const idx: Integer): Plua_State;
+var
+  o: StkId;
 begin
-
+  StkId o = index2addr(L, idx);
+  if (not ttisthread(o)) then
+    Result := Nil
+  else
+    Result := thvalue(o);
 end;
 
 function lua_topointer(const L: Plua_State; const idx: Integer): Pointer;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  case (ttype(o)) of
+    LUA_TTABLE: Result := hvalue(o);
+    LUA_TLCL: Result := clLvalue(o);
+    LUA_TCCL: Result := clCvalue(o);
+    LUA_TLCF: Result := Pointer( fvalue(o) );
+    LUA_TTHREAD: Result := thvalue(o);
+    LUA_TUSERDATA: Result := getudatamem(uvalue(o));
+    LUA_TLIGHTUSERDATA: Result := pvalue(o);
+    else Result := Nil;
+  end;
 end;
 
 procedure lua_arith(const L: Plua_State; const op: Integer);
 begin
-
+  lua_lock(L);
+  if (op <> LUA_OPUNM) and (op <> LUA_OPBNOT) then
+    api_checknelems(L, 2)  //* all other operations expect two operands */
+  else
+  begin //* for unary operations, add fake 2nd operand */
+    api_checknelems(L, 1);
+    setobjs2s(L, L^.top, L^.top - 1);
+    api_incr_top(L);
+  end;
+  //* first operand at top - 2, second at top - 1; result go to top - 2 */
+  luaO_arith(L, op, L^.top - 2, L^.top - 1, L^.top - 2);
+  dec(L^.top);  //* remove second operand */
+  lua_unlock(L);
 end;
 
 function lua_rawequal(const L: Plua_State; const idx1, idx2: Integer): lu_int;
+var
+  o1, o2: StkId;
 begin
-
+  o1 := index2addr(L, idx1);
+  o2 := index2addr(L, idx2);
+  if (isvalid(o1) and isvalid(o2)) then
+    Result := luaV_rawequalobj(o1, o2)
+  else
+    Result := 0;
 end;
 
 function lua_compare(const L: Plua_State; const idx1, idx2, op: Integer): lu_int;
+var
+  o1, o2: StkId;
 begin
-
+  Result := 0;
+  lua_lock(L);  //* may call tag method */
+  o1 := index2addr(L, idx1);
+  o2 := index2addr(L, idx2);
+  if (isvalid(o1) and isvalid(o2)) then
+  case (op) of
+    LUA_OPEQ: Result := luaV_equalobj(L, o1, o2);
+    LUA_OPLT: Result := luaV_lessthan(L, o1, o2);
+    LUA_OPLE: Result := luaV_lessequal(L, o1, o2);
+    else api_check(L, false, 'invalid option');
+  end;
+  lua_unlock(L);
 end;
 
 procedure lua_pushnil(const L: Plua_State);
@@ -1112,7 +1241,9 @@ end;
 
 function lua_stringtonumber(const L: Plua_State; const s: PChar): SizeUInt;
 begin
-
+  Result := luaO_str2num(s, L^.top);
+  if (Result <> 0) then
+    api_incr_top(L);
 end;
 
 function lua_getallocf(const L: Plua_State; const ud: PPointer): lua_Alloc;
