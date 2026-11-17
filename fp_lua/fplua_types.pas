@@ -286,13 +286,13 @@ type
   *)
   CallInfo_union = record case Byte of
   1:( //* only for Lua functions */
-    base: StkId; //* base for this function */
-    savedpc: PInstruction;
+    l_base: StkId; //* base for this function */
+    l_savedpc: PInstruction;
   );
   2:( //* only for C functions */
-    k: lua_KFunction; //* continuation in case of yields */
-    old_errfunc: PtrInt;
-    ctx: lua_KContext; //* context info. in case of yields */
+    c_k: lua_KFunction; //* continuation in case of yields */
+    c_old_errfunc: PtrInt;
+    c_ctx: lua_KContext; //* context info. in case of yields */
   );
   end;
 
@@ -460,7 +460,7 @@ procedure condchangemem(const L: Plua_State);
 function CClosure_upvalue(const v: PCClosure): PTValue; inline;
 function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue; inline;
 function LClosure_upvals(const v: PLClosure): PPUpVal; inline;
-function LClosure_upvalsN(const v: PLClosure; const n: Integer): PPUpVal; inline;
+function LClosure_upvalsN(const v: PLClosure; const n: Integer): PUpVal; inline;
 
 implementation
 
@@ -529,10 +529,9 @@ begin
   Result := @v^.upvals_0;
 end;
 
-function LClosure_upvalsN(const v: PLClosure; const n: Integer): PPUpVal;
+function LClosure_upvalsN(const v: PLClosure; const n: Integer): PUpVal;
 begin
-  Result := @v^.upvals_0;
-  Result := Result + n;
+  Result := (PPUpVal(@v^.upvals_0) + n)^;
 end;
 
 end.

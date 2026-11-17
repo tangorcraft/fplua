@@ -34,7 +34,7 @@ function restorestack(const L: Plua_State; const n: PtrInt): PTValue;
 (* type of protected functions, to be ran by 'runprotected' *)
 //typedef void (*Pfunc) (lua_State *L, void *ud);
 type
-  Pfunc = procedure (L: Plua_State; ud: Pointer);
+  Pfunc = procedure (const L: Plua_State; const ud: Pointer);
 
 { TODO
 LUAI_FUNC int luaD_protectedparser (lua_State *L, ZIO *z, const char *name,

@@ -109,7 +109,7 @@ begin
 end;
 
 //#define invalidateTMcache(t)  ((t)->flags = 0)
-procedure invalidateTMcache(var t: Table);
+procedure invalidateTMcache(const t: PTable);
 begin
   t^.flags := 0;
 end;

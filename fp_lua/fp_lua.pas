@@ -211,8 +211,8 @@ function lua_pcall(const L: Plua_State; const n, r, f: Integer): Integer;
 
 //LUA_API int   (lua_load) (lua_State *L, lua_Reader reader, void *dt,
 //                          const char *chunkname, const char *mode);
-function lua_load(const L: Plua_State; const reader: lua_Reader; const dt: Pointer;
-  const chunkname, mode: PChar): Integer;
+function lua_load(const L: Plua_State; const reader: lua_Reader; const data: Pointer;
+  chunkname: PChar; const  mode: PChar): Integer;
 
 //LUA_API int (lua_dump) (lua_State *L, lua_Writer writer, void *data, int strip);
 function lua_dump(const L: Plua_State; const writer: lua_Writer; const data: Pointer;
@@ -473,7 +473,7 @@ implementation
 
 uses
   Math,
-  lapi, ldebug, ldo, lfunc, lgc, lmem, lobject, lstate, lstring, ltable, ltm, lundump, lvm;
+  lapi, ldebug, ldo, lfunc, lgc, lmem, lobject, lstate, lstring, ltable, ltm, lundump, lvm, lzio;
 
 (* value at a non-valid index *)
 //#define NONVALIDVALUE         cast(TValue *, luaO_nilobject)
@@ -568,7 +568,7 @@ end;
 ** capturing memory errors
 *)
 //static void growstack (lua_State *L, void *ud)
-procedure growstack(L: Plua_State; ud: Pointer);
+procedure growstack(const L: Plua_State; const ud: Pointer);
 var
   size: Integer;
 begin
@@ -1251,8 +1251,8 @@ begin
   t := luaH_new(L);
   sethvalue(L, L^.top, t);
   api_incr_top(L);
-  if (narray > 0) or (nrec > 0) then
-    luaH_resize(L, t, narray, nrec);
+  if (narr > 0) or (nrec > 0) then
+    luaH_resize(L, t, narr, nrec);
   luaC_checkGC(L);
   lua_unlock(L);
 end;
@@ -1275,14 +1275,14 @@ begin
       mt := hvalue(obj)^.metatable;
     LUA_TUSERDATA:
       mt := uvalue(obj)^.metatable;
-    else:
+    else
       mt := G(L)^.mt[ttnov(obj)];
   end;
-  if (mt <> NULL) then
+  if (mt <> Nil) then
   begin
     sethvalue(L, L^.top, mt);
     api_incr_top(L);
-    res := 1;
+    Result := 1;
   end;
   lua_unlock(L);
 end;
@@ -1358,7 +1358,7 @@ begin
   lua_lock(L);
   api_checknelems(L, 1);
   t := index2addr(L, idx);
-  if (luaV_fastset_int(L, t, n, slot, L^.top - 1))
+  if (luaV_fastset_int(L, t, n, slot, L^.top - 1)) then
     dec(L^.top)  //* pop value */
   else
   begin
@@ -1447,7 +1447,7 @@ begin
       uvalue(obj)^.metatable := mt;
       if (mt <> nil) then
       begin
-        luaC_objbarrier(L, uvalue(obj), obj2gco(mt));
+        luaC_objbarrier(L, obj2gco(uvalue(obj)), obj2gco(mt));
         luaC_checkfinalizer(L, gcvalue(obj), mt);
       end;
     end;
@@ -1474,10 +1474,37 @@ begin
   lua_unlock(L);
 end;
 
+//#define checkresults(L,na,nr) \
+//     api_check(L, (nr) == LUA_MULTRET || (L->ci->top - L->top >= (nr) - (na)), \
+//	"results from function overflow current stack size")
+procedure checkresults(const L: Plua_State; const na, nr: Integer);
+begin
+  api_check(L, (nr = LUA_MULTRET) or ((L^.ci^.top - L^.top) >= (nr - na)),
+            'results from function overflow current stack size');
+end;
+
 procedure lua_callk(const L: Plua_State; const nargs, nresults: Integer;
   const ctx: lua_KContext; const k: lua_KFunction);
+var
+  func: StkId;
 begin
-
+  lua_lock(L);
+  api_check(L, (k = Nil) or (not isLua(L^.ci)),
+    'cannot use continuations inside hooks');
+  api_checknelems(L, nargs+1);
+  api_check(L, L^.status = LUA_OK, 'cannot do calls on non-normal thread');
+  checkresults(L, nargs, nresults);
+  func := L^.top - (nargs+1);
+  if (k <> Nil) and (L^.nny = 0) then
+  begin  //* need to prepare continuation? */
+    L^.ci^.u.c_k := k;  //* save continuation */
+    L^.ci^.u.c_ctx := ctx;  //* save context */
+    luaD_call(L, func, nresults);  //* do the call */
+  end
+  else  //* no continuation or no yieldable */
+    luaD_callnoyield(L, func, nresults);  //* just do the call */
+  adjustresults(L, nresults);
+  lua_unlock(L);
 end;
 
 //#define lua_call(L,n,r)         lua_callk(L, (n), (r), 0, NULL)
@@ -1486,28 +1513,122 @@ begin
   lua_callk(L, n, r, 0, Nil);
 end;
 
+(*
+** Execute a protected call.
+*)
+type
+  CallS = record  //* data to 'f_call' */
+    func: StkId;
+    nresults: Integer;
+  end;
+  PCallS = ^CallS;
+
+
+//static void f_call (lua_State *L, void *ud)
+procedure f_call(const L: Plua_State; const ud: Pointer);
+var
+  c: PCallS;
+begin
+  c := ud;
+  luaD_callnoyield(L, c^.func, c^.nresults);
+end;
+
 function lua_pcallk(const L: Plua_State; const nargs, nresults, errfunc: Integer;
   const ctx: lua_KContext; const k: lua_KFunction): Integer;
+var
+  c: CallS;
+  func: PtrInt;
+  o: StkId;
+  ci: PCallInfo;
 begin
-
+  lua_lock(L);
+  api_check(L, (k = Nil) or (not isLua(L^.ci)),
+    'cannot use continuations inside hooks');
+  api_checknelems(L, nargs+1);
+  api_check(L, L^.status = LUA_OK, 'cannot do calls on non-normal thread');
+  checkresults(L, nargs, nresults);
+  if (errfunc = 0) then
+    func := 0
+  else
+  begin
+    o := index2addr(L, errfunc);
+    api_checkstackindex(L, errfunc, o);
+    func := savestack(L, o);
+  end;
+  c.func := L^.top - (nargs+1);  //* function to be called */
+  if (k = Nil) or (L^.nny > 0) then
+  begin  //* no continuation or no yieldable? */
+    c.nresults := nresults;  //* do a 'conventional' protected call */
+    Result := luaD_pcall(L, @f_call, @c, savestack(L, c.func), func);
+  end
+  else
+  begin  //* prepare continuation (call is already protected by 'resume') */
+    ci := L^.ci;
+    ci^.u.c_k := k;  //* save continuation */
+    ci^.u.c_ctx := ctx;  //* save context */
+    //* save information for error recovery */
+    ci^.extra := savestack(L, c.func);
+    ci^.u.c_old_errfunc := L^.errfunc;
+    L^.errfunc := func;
+    setoah(ci^.callstatus, L^.allowhook);  //* save value of 'allowhook' */
+    ci^.callstatus := ci^.callstatus or CIST_YPCALL;  //* function can do error recovery */
+    luaD_call(L, c.func, nresults);  //* do the call */
+    ci^.callstatus := ci^.callstatus and not CIST_YPCALL;
+    L^.errfunc := ci^.u.c_old_errfunc;
+    Result := LUA_OK;  //* if it is here, there were no errors */
+  end;
+  adjustresults(L, nresults);
+  lua_unlock(L);
 end;
 
 //#define lua_pcall(L,n,r,f)      lua_pcallk(L, (n), (r), (f), 0, NULL)
 function lua_pcall(const L: Plua_State; const n, r, f: Integer): Integer;
 begin
-  lua_pcallk(L, n, r, f, 0, Nil);
+  Result := lua_pcallk(L, n, r, f, 0, Nil);
 end;
 
-function lua_load(const L: Plua_State; const reader: lua_Reader; const dt: Pointer;
-  const chunkname, mode: PChar): Integer;
+function lua_load(const L: Plua_State; const reader: lua_Reader; const data: Pointer;
+  chunkname: PChar; const mode: PChar): Integer;
+var
+  z: Zio;
+  f: PLClosure;
+  reg: PTable;
+  gt: PTValue;
 begin
-
+  lua_lock(L);
+  if (chunkname = nil) then
+    chunkname := '?';
+  luaZ_init(L, z, reader, data);
+  Result := luaD_protectedparser(L, z, chunkname, mode);
+  if (Result = LUA_OK) then
+  begin  //* no errors? */
+    f := clLvalue(L^.top - 1);  //* get newly created function */
+    if (f^.header.nupvalues >= 1) then
+    begin  //* does it have an upvalue? */
+      //* get global table from registry */
+      reg := hvalue(@(G(L)^.l_registry));
+      gt := luaH_getint(reg, LUA_RIDX_GLOBALS);
+      //* set global table as 1st upvalue of 'f' (may be LUA_ENV) */
+      setobj(L, f^.upvals_0^.v, gt);
+      luaC_upvalbarrier(L, f^.upvals_0);
+    end;
+  end;
+  lua_unlock(L);
 end;
 
 function lua_dump(const L: Plua_State; const writer: lua_Writer; const data: Pointer;
   const strip: Integer): Integer;
+var
+  o: PTValue;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  o := L^.top - 1;
+  if (isLfunction(o)) then
+    Result := luaU_dump(L, getproto(o), writer, data, strip)
+  else
+    Result := 1;
+  lua_unlock(L);
 end;
 
 function lua_yieldk(const L: Plua_State; const nresults: Integer; const ctx: lua_KContext;
@@ -1523,7 +1644,7 @@ end;
 
 function lua_status(const L: Plua_State): Integer;
 begin
-
+  Result := L^.status;
 end;
 
 function lua_isyieldable(const L: Plua_State): lu_int;
