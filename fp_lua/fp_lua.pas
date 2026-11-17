@@ -134,7 +134,7 @@ function lua_pushlstring(const L: Plua_State; const s: PChar; const len: SizeUIn
 function lua_pushstring(const L: Plua_State; const s: PChar): PChar;
 function lua_pushvfstring(const L: Plua_State; const fmt: PChar; const argp: array of const): PChar;
 function lua_pushfstring(const L: Plua_State; const fmt: PChar; const args: array of const): PChar;
-procedure lua_pushcclosure(const L: Plua_State; const fn: lua_CFunction; const n: Integer);
+procedure lua_pushcclosure(const L: Plua_State; const fn: lua_CFunction; n: Integer);
 procedure lua_pushboolean(const L: Plua_State; const b: lu_int);
 procedure lua_pushlightuserdata(const L: Plua_State; const p: Pointer);
 function lua_pushthread(const L: Plua_State): Integer;
@@ -768,7 +768,7 @@ var
   o: PTValue;
 begin
   o := index2addr(L, idx);
-  Result := tonumber(o, &n);
+  Result := tonumber(o, @n);
 end;
 
 function lua_isstring(const L: Plua_State; const idx: Integer): lu_int;
@@ -901,8 +901,8 @@ begin
   o := index2addr(L, idx);
   if (ttislcf(o)) then
     Result := fvalue(o)
-  else if (ttisCclosure(o))
-    Result := clCvalue(o)^.f;
+  else if (ttisCclosure(o)) then
+    Result := clCvalue(o)^.f
   else
     Result := Nil;  //* not a C function */
 end;
@@ -923,7 +923,7 @@ function lua_tothread(const L: Plua_State; const idx: Integer): Plua_State;
 var
   o: StkId;
 begin
-  StkId o = index2addr(L, idx);
+  o := index2addr(L, idx);
   if (not ttisthread(o)) then
     Result := Nil
   else
@@ -996,59 +996,141 @@ end;
 
 procedure lua_pushnil(const L: Plua_State);
 begin
-
+  lua_lock(L);
+  setnilvalue(L^.top);
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
 procedure lua_pushnumber(const L: Plua_State; const n: lua_Number);
 begin
-
+  lua_lock(L);
+  setfltvalue(L^.top, n);
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
 procedure lua_pushinteger(const L: Plua_State; const n: lua_Integer);
 begin
-
+  lua_lock(L);
+  setivalue(L^.top, n);
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
+(*
+** Pushes on the stack a string with given length. Avoid using 's' when
+** 'len' == 0 (as 's' can be NULL in that case), due to later use of
+** 'memcmp' and 'memcpy'.
+*)
 function lua_pushlstring(const L: Plua_State; const s: PChar; const len: SizeUInt): PChar;
+var
+  ts: PTString;
 begin
-
+  lua_lock(L);
+  if (len = 0) then
+    ts := luaS_new(L, '')
+  else
+    ts := luaS_newlstr(L, s, len);
+  setsvalue2s(L, L^.top, ts);
+  api_incr_top(L);
+  luaC_checkGC(L);
+  lua_unlock(L);
+  Result := getstr(ts);
 end;
 
 function lua_pushstring(const L: Plua_State; const s: PChar): PChar;
+var
+  ts: PTString;
 begin
-
+  lua_lock(L);
+  if (s = Nil) then
+  begin
+    setnilvalue(L^.top);
+    Result := s;
+  end
+  else
+  begin
+    ts := luaS_new(L, s);
+    setsvalue2s(L, L^.top, ts);
+    Result := getstr(ts);  //* internal copy's address */
+  end;
+  api_incr_top(L);
+  luaC_checkGC(L);
+  lua_unlock(L);
 end;
 
 function lua_pushvfstring(const L: Plua_State; const fmt: PChar;
   const argp: array of const): PChar;
 begin
-
+  lua_lock(L);
+  Result := luaO_pushvfstring(L, fmt, argp);
+  luaC_checkGC(L);
+  lua_unlock(L);
 end;
 
 function lua_pushfstring(const L: Plua_State; const fmt: PChar;
   const args: array of const): PChar;
 begin
-
+  lua_lock(L);
+  Result := luaO_pushvfstring(L, fmt, args);
+  luaC_checkGC(L);
+  lua_unlock(L);
 end;
 
-procedure lua_pushcclosure(const L: Plua_State; const fn: lua_CFunction; const n: Integer);
+procedure lua_pushcclosure(const L: Plua_State; const fn: lua_CFunction; n: Integer);
+var
+  cl: PCClosure;
 begin
-
+  lua_lock(L);
+  if (n = 0) then
+  begin
+    setfvalue(L^.top, fn);
+    api_incr_top(L);
+  end
+  else
+  begin
+    api_checknelems(L, n);
+    api_check(L, n <= MAXUPVAL, 'upvalue index too large');
+    cl := luaF_newCclosure(L, n);
+    cl^.f := fn;
+    L^.top := L^.top - n;
+    while (n<>0) do
+    begin
+      dec(n);
+      setobj2n(L, CClosure_upvalueN(cl,n), L^.top + n);
+      //* does not need barrier because closure is white */
+    end;
+    setclCvalue(L, L^.top, cl);
+    api_incr_top(L);
+    luaC_checkGC(L);
+  end;
+  lua_unlock(L);
 end;
 
 procedure lua_pushboolean(const L: Plua_State; const b: lu_int);
 begin
-
+  lua_lock(L);
+  setbvalue(L^.top, lu_int(b <> 0));  //* ensure that true is 1 */
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
 procedure lua_pushlightuserdata(const L: Plua_State; const p: Pointer);
 begin
-
+  lua_lock(L);
+  setpvalue(L^.top, p);
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
 function lua_pushthread(const L: Plua_State): Integer;
 begin
-
+  lua_lock(L);
+  setthvalue(L, L^.top, L);
+  api_incr_top(L);
+  lua_unlock(L);
+  Result := lu_int(G(L)^.mainthread = L);
 end;
 
 function lua_getglobal(const L: Plua_State; const name: PChar): Integer;

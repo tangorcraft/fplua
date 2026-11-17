@@ -49,9 +49,8 @@ type
   (*
   ** Type for C functions registered with Lua
   *)
-  // TODO cdecl?
   //typedef int (*lua_CFunction) (lua_State *L);
-  lua_CFunction = function (L: Plua_State): Integer;
+  lua_CFunction = function (const L: Plua_State): Integer; cdecl;
 
   (*
   ** Type for continuation functions
@@ -459,7 +458,9 @@ procedure condchangemem(const L: Plua_State);
 {$endif}
 
 function CClosure_upvalue(const v: PCClosure): PTValue; inline;
+function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue; inline;
 function LClosure_upvals(const v: PLClosure): PPUpVal; inline;
+function LClosure_upvalsN(const v: PLClosure; const n: Integer): PPUpVal; inline;
 
 implementation
 
@@ -517,9 +518,21 @@ begin
   Result := @v^.upvalue_0;
 end;
 
+function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue;
+begin
+  Result := @v^.upvalue_0;
+  Result := Result + n;
+end;
+
 function LClosure_upvals(const v: PLClosure): PPUpVal;
 begin
   Result := @v^.upvals_0;
+end;
+
+function LClosure_upvalsN(const v: PLClosure; const n: Integer): PPUpVal;
+begin
+  Result := @v^.upvals_0;
+  Result := Result + n;
 end;
 
 end.
