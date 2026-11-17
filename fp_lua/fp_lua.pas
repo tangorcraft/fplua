@@ -1133,44 +1133,128 @@ begin
   Result := lu_int(G(L)^.mainthread = L);
 end;
 
-function lua_getglobal(const L: Plua_State; const name: PChar): Integer;
+//static int auxgetstr (lua_State *L, const TValue *t, const char *k)
+function auxgetstr(const L: Plua_State; const t: PTValue; const k: PChar): Integer;
+var
+  slot: PTValue;
+  str: PTString;
 begin
+  str := luaS_new(L, k);
+  if luaV_fastget_str(L, t, str, slot) then
+  begin
+    setobj2s(L, L^.top, slot);
+    api_incr_top(L);
+  end
+  else
+  begin
+    setsvalue2s(L, L^.top, str);
+    api_incr_top(L);
+    luaV_finishget(L, t, L^.top - 1, L^.top - 1, slot);
+  end;
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
+end;
 
+function lua_getglobal(const L: Plua_State; const name: PChar): Integer;
+var
+  reg: PTable;
+begin
+  reg := hvalue(@(G(L)^.l_registry));
+  lua_lock(L);
+  Result := auxgetstr(L, luaH_getint(reg, LUA_RIDX_GLOBALS), name);
 end;
 
 function lua_gettable(const L: Plua_State; const idx: Integer): Integer;
+var
+  t: StkId;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  luaV_gettable(L, t, L^.top - 1, L^.top - 1);
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 function lua_getfield(const L: Plua_State; const idx: Integer; const k: PChar): Integer;
 begin
-
+  lua_lock(L);
+  Result := auxgetstr(L, index2addr(L, idx), k);
 end;
 
 function lua_geti(const L: Plua_State; const idx: Integer; const n: lua_Integer): Integer;
+var
+  t: StkId;
+  slot: PTValue;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  if (luaV_fastget_int(L, t, n, slot)) then
+  begin
+    setobj2s(L, L^.top, slot);
+    api_incr_top(L);
+  end
+  else
+  begin
+    setivalue(L^.top, n);
+    api_incr_top(L);
+    luaV_finishget(L, t, L^.top - 1, L^.top - 1, slot);
+  end;
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 function lua_rawget(const L: Plua_State; const idx: Integer): Integer;
+var
+  t: StkId;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  api_check(L, ttistable(t), 'table expected');
+  setobj2s(L, L^.top - 1, luaH_get(hvalue(t), L^.top - 1));
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 function lua_rawgeti(const L: Plua_State; const idx: Integer; const n: lua_Integer): Integer;
+var
+  t: StkId;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  api_check(L, ttistable(t), 'table expected');
+  setobj2s(L, L^.top, luaH_getint(hvalue(t), n));
+  api_incr_top(L);
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 function lua_rawgetp(const L: Plua_State; const idx: Integer; const p: Pointer): Integer;
+var
+  t: StkId;
+  k: TValue;
 begin
-
+  lua_lock(L);
+  t := index2addr(L, idx);
+  api_check(L, ttistable(t), 'table expected');
+  setpvalue(@k, p);
+  setobj2s(L, L^.top, luaH_get(hvalue(t), @k));
+  api_incr_top(L);
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 procedure lua_createtable(const L: Plua_State; const narr, nrec: Integer);
+var
+  t: PTable;
 begin
-
+  lua_lock(L);
+  t := luaH_new(L);
+  sethvalue(L, L^.top, t);
+  api_incr_top(L);
+  if (narray > 0) or (nrec > 0) then
+    luaH_resize(L, t, narray, nrec);
+  luaC_checkGC(L);
+  lua_unlock(L);
 end;
 
 function lua_newuserdata(const L: Plua_State; const sz: SizeUInt): Pointer;
@@ -1179,13 +1263,41 @@ begin
 end;
 
 function lua_getmetatable(const L: Plua_State; const objindex: Integer): Integer;
+var
+  obj: PTValue;
+  mt: PTable;
 begin
-
+  Result := 0;
+  lua_lock(L);
+  obj := index2addr(L, objindex);
+  case (ttnov(obj)) of
+    LUA_TTABLE:
+      mt := hvalue(obj)^.metatable;
+    LUA_TUSERDATA:
+      mt := uvalue(obj)^.metatable;
+    else:
+      mt := G(L)^.mt[ttnov(obj)];
+  end;
+  if (mt <> NULL) then
+  begin
+    sethvalue(L, L^.top, mt);
+    api_incr_top(L);
+    res := 1;
+  end;
+  lua_unlock(L);
 end;
 
 function lua_getuservalue(const L: Plua_State; const idx: Integer): Integer;
+var
+  o: StkId;
 begin
-
+  lua_lock(L);
+  o := index2addr(L, idx);
+  api_check(L, ttisfulluserdata(o), 'full userdata expected');
+  getuservalue(L, uvalue(o), L^.top);
+  api_incr_top(L);
+  lua_unlock(L);
+  Result := ttnov(L^.top - 1);
 end;
 
 procedure lua_setglobal(const L: Plua_State; const name: PChar);
