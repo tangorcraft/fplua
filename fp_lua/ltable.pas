@@ -17,7 +17,7 @@ function gnext(const n: PNode): Integer;
 
 
 (* 'const' to avoid wrong writings that can mess up field 'next' *)
-function gkey(const n: PNode): TValuefields;
+function gkey(const n: PNode): PTValue;
 
 (*
 ** writable version of 'gkey'; allows updates to individual fields,
@@ -34,7 +34,7 @@ function isdummy(const t: PTable): Boolean;
 function allocsizenode(const t: PTable): Integer;
 
 (* returns the key, given the value of a table entry *)
-function keyfromval(const v: PTValue): TValuefields;
+function keyfromval(const v: PTValue): PTValue;
 
 //LUAI_FUNC const TValue *luaH_getint (Table *t, lua_Integer key);
 function luaH_getint(const t: PTable; const key: lua_Integer): PTValue;
@@ -97,15 +97,15 @@ begin
 end;
 
 //#define gkey(n)               cast(const TValue*, (&(n)->i_key.tvk))
-function gkey(const n: PNode): TValuefields;
+function gkey(const n: PNode): PTValue;
 begin
-  Result := n^.i_key.tvk.fields;
+  Result := @(n^.i_key.tvk);
 end;
 
 //#define wgkey(n)              (&(n)->i_key.nk)
 function wgkey(const n: PNode): PTValue;
 begin
-  Result := @(n^.i_key.nk);
+  Result := @(n^.i_key.nk.v);
 end;
 
 //#define invalidateTMcache(t)  ((t)->flags = 0)
@@ -132,11 +132,11 @@ end;
 
 //#define keyfromval(v) \
 //  (gkey(cast(Node *, cast(char *, (v)) - offsetof(Node, i_val))))
-function keyfromval(const v: PTValue): TValuefields;
+function keyfromval(const v: PTValue): PTValue;
 const
   offsetof_Node_i_val = PtrInt(@(Node(nil^).i_val));
 begin
-  Result := PNode( Pointer(v) - offsetof_Node_i_val )^.i_key.tvk.fields;
+  Result := @(PNode( Pointer(v) - offsetof_Node_i_val )^.i_key.tvk);
 end;
 
 function luaH_getint(const t: PTable; const key: lua_Integer): PTValue;

@@ -98,14 +98,14 @@ const
 
 (* macro defining a nil value *)
 const
-  NILCONSTANT : lua_TValue = (fields: (value_: (p: nil); tt_: LUA_TNIL));
+  NILCONSTANT : lua_TValue = (value_: (p: nil); tt_: LUA_TNIL);
 
 //#define val_(o)         ((o)->value_)
-function val_(const o: TValuefields): Value;
+function val_(const o: PTValue): Value;
 
 (* raw type tag of a TValue *)
 //#define rttype(o)       ((o)->tt_)
-function rttype(const o: TValuefields): integer;
+function rttype(const o: PTValue): integer;
 
 (* tag with no variants (bits 0-3) *)
 //#define novariant(x)    ((x) & 0x0F)
@@ -113,107 +113,107 @@ function novariant(const x: integer): integer;
 
 (* type tag of a TValue (bits 0-3 for tags + variant bits 4-5) *)
 //#define ttype(o)        (rttype(o) & 0x3F)
-function ttype(const o: TValuefields): integer;
+function ttype(const o: PTValue): integer;
 
 (* type tag of a TValue with no variants (bits 0-3) *)
 //#define ttnov(o)        (novariant(rttype(o)))
-function ttnov(const o: TValuefields): integer;
+function ttnov(const o: PTValue): integer;
 
 
 (* Macros to test type *)
 //#define checktag(o,t)           (rttype(o) == (t))
-function checktag(const o: TValuefields; const t: Integer): Boolean;
+function checktag(const o: PTValue; const t: Integer): Boolean;
 //#define checktype(o,t)          (ttnov(o) == (t))
-function checktype(const o: TValuefields; const t: Integer): Boolean;
+function checktype(const o: PTValue; const t: Integer): Boolean;
 
-function ttisnumber(const o: TValuefields): Boolean;
-function ttisfloat(const o: TValuefields): Boolean;
-function ttisinteger(const o: TValuefields): Boolean;
-function ttisnil(const o: TValuefields): Boolean;
-function ttisboolean(const o: TValuefields): Boolean;
-function ttislightuserdata(const o: TValuefields): Boolean;
-function ttisstring(const o: TValuefields): Boolean;
-function ttisshrstring(const o: TValuefields): Boolean;
-function ttislngstring(const o: TValuefields): Boolean;
-function ttistable(const o: TValuefields): Boolean;
-function ttisfunction(const o: TValuefields): Boolean;
-function ttisclosure(const o: TValuefields): Boolean;
-function ttisCclosure(const o: TValuefields): Boolean;
-function ttisLclosure(const o: TValuefields): Boolean;
-function ttislcf(const o: TValuefields): Boolean;
-function ttisfulluserdata(const o: TValuefields): Boolean;
-function ttisthread(const o: TValuefields): Boolean;
-function ttisdeadkey(const o: TValuefields): Boolean;
+function ttisnumber(const o: PTValue): Boolean;
+function ttisfloat(const o: PTValue): Boolean;
+function ttisinteger(const o: PTValue): Boolean;
+function ttisnil(const o: PTValue): Boolean;
+function ttisboolean(const o: PTValue): Boolean;
+function ttislightuserdata(const o: PTValue): Boolean;
+function ttisstring(const o: PTValue): Boolean;
+function ttisshrstring(const o: PTValue): Boolean;
+function ttislngstring(const o: PTValue): Boolean;
+function ttistable(const o: PTValue): Boolean;
+function ttisfunction(const o: PTValue): Boolean;
+function ttisclosure(const o: PTValue): Boolean;
+function ttisCclosure(const o: PTValue): Boolean;
+function ttisLclosure(const o: PTValue): Boolean;
+function ttislcf(const o: PTValue): Boolean;
+function ttisfulluserdata(const o: PTValue): Boolean;
+function ttisthread(const o: PTValue): Boolean;
+function ttisdeadkey(const o: PTValue): Boolean;
 
 
 (* Macros to access values *)
 
-function ivalue(const o: TValuefields): lua_Integer;
-function fltvalue(const o: TValuefields): lua_Number;
-function nvalue(const o: TValuefields): lua_Number;
-function gcvalue(const o: TValuefields): PGCObject;
-function pvalue(const o: TValuefields): Pointer;
-function tsvalue(const o: TValuefields): PTString;
-function uvalue(const o: TValuefields): PUdata;
-function clvalue(const o: TValuefields): PClosure;
-function clLvalue(const o: TValuefields): PLClosure;
-function clCvalue(const o: TValuefields): PCClosure;
-function fvalue(const o: TValuefields): lua_CFunction;
-function hvalue(const o: TValuefields): PTable;
-function bvalue(const o: TValuefields): lu_int;
-function thvalue(const o: TValuefields): Plua_State;
+function ivalue(const o: PTValue): lua_Integer;
+function fltvalue(const o: PTValue): lua_Number;
+function nvalue(const o: PTValue): lua_Number;
+function gcvalue(const o: PTValue): PGCObject;
+function pvalue(const o: PTValue): Pointer;
+function tsvalue(const o: PTValue): PTString;
+function uvalue(const o: PTValue): PUdata;
+function clvalue(const o: PTValue): PClosure;
+function clLvalue(const o: PTValue): PLClosure;
+function clCvalue(const o: PTValue): PCClosure;
+function fvalue(const o: PTValue): lua_CFunction;
+function hvalue(const o: PTValue): PTable;
+function bvalue(const o: PTValue): lu_int;
+function thvalue(const o: PTValue): Plua_State;
 //* a dead value may get the 'gc' field, but cannot access its contents */
-function deadvalue(const o: TValuefields): Pointer;
+function deadvalue(const o: PTValue): Pointer;
 
-function l_isfalse(const o: TValuefields): Boolean;
+function l_isfalse(const o: PTValue): Boolean;
 
-function iscollectable(const o: TValuefields): Boolean;
+function iscollectable(const o: PTValue): Boolean;
 
 (* Macros for internal tests *)
 
-function righttt(const obj: TValuefields): Boolean;
+function righttt(const obj: PTValue): Boolean;
 
-procedure checkliveness(const L: Plua_State; const obj: TValuefields);
+procedure checkliveness(const L: Plua_State; const obj: PTValue);
 
 (* Macros to set values *)
 
-procedure settt_(var o: TValuefields; const t: Integer);
+procedure settt_(const o: PTValue; const t: Integer);
 
-procedure setfltvalue(var o: TValuefields; const x: lua_Number);
+procedure setfltvalue(const o: PTValue; const x: lua_Number);
 
-procedure chgfltvalue(var o: TValuefields; const x: lua_Number);
+procedure chgfltvalue(const o: PTValue; const x: lua_Number);
 
-procedure setivalue(var o: TValuefields; const x: lua_Integer);
+procedure setivalue(const o: PTValue; const x: lua_Integer);
 
-procedure chgivalue(var o: TValuefields; const x: lua_Integer);
+procedure chgivalue(const o: PTValue; const x: lua_Integer);
 
-procedure setnilvalue(var obj: TValuefields);
+procedure setnilvalue(const obj: PTValue);
 
-procedure setfvalue(var o: TValuefields; const x: lua_CFunction);
+procedure setfvalue(const o: PTValue; const x: lua_CFunction);
 
-procedure setpvalue(var o: TValuefields; const x: Pointer);
+procedure setpvalue(const o: PTValue; const x: Pointer);
 
-procedure setbvalue(var o: TValuefields; const x: lu_int);
+procedure setbvalue(const o: PTValue; const x: lu_int);
 
-procedure setgcovalue(const L: Plua_State; var o: TValuefields; const x: PGCObject);
+procedure setgcovalue(const L: Plua_State; const o: PTValue; const x: PGCObject);
 
-procedure setsvalue(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure setsvalue(const L: Plua_State; const o: PTValue; const x: PTString);
 
-procedure setuvalue(const L: Plua_State; var o: TValuefields; const x: PUdata);
+procedure setuvalue(const L: Plua_State; const o: PTValue; const x: PUdata);
 
-procedure setthvalue(const L: Plua_State; var o: TValuefields; const x: Plua_State);
+procedure setthvalue(const L: Plua_State; const o: PTValue; const x: Plua_State);
 
-procedure setclLvalue(const L: Plua_State; var o: TValuefields; const x: PLClosure);
+procedure setclLvalue(const L: Plua_State; const o: PTValue; const x: PLClosure);
 
-procedure setclCvalue(const L: Plua_State; var o: TValuefields; const x: PCClosure);
+procedure setclCvalue(const L: Plua_State; const o: PTValue; const x: PCClosure);
 
-procedure sethvalue(const L: Plua_State; var o: TValuefields; const x: PTable);
+procedure sethvalue(const L: Plua_State; const o: PTValue; const x: PTable);
 
-procedure setdeadvalue(var obj: TValuefields);
+procedure setdeadvalue(const obj: PTValue);
 
 
 // TODO maybe need overloaded versions
-procedure setobj(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobj(const L: Plua_State; const obj1, obj2: PTValue);
 
 
 (*
@@ -221,17 +221,17 @@ procedure setobj(const L: Plua_State; var obj1: TValuefields; const obj2: TValue
 *)
 
 (* from stack to (same) stack *)
-procedure setobjs2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobjs2s(const L: Plua_State; const obj1, obj2: PTValue);
 (* to stack (not from same stack) *)
-procedure setobj2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
-procedure setsvalue2s(const L: Plua_State; var o: TValuefields; const x: PTString);
-procedure sethvalue2s(const L: Plua_State; var o: TValuefields; const x: PTable);
+procedure setobj2s(const L: Plua_State; const obj1, obj2: PTValue);
+procedure setsvalue2s(const L: Plua_State; const o: PTValue; const x: PTString);
+procedure sethvalue2s(const L: Plua_State; const o: PTValue; const x: PTable);
 //#define setptvalue2s    setptvalue // no such thing, not use anywhere (╯°□°)╯︵ ┻━┻
 (* from table to same table *)
-procedure setobjt2t(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobjt2t(const L: Plua_State; const obj1, obj2: PTValue);
 (* to new object *)
-procedure setobj2n(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
-procedure setsvalue2n(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure setobj2n(const L: Plua_State; const obj1, obj2: PTValue);
+procedure setsvalue2n(const L: Plua_State; const o: PTValue; const x: PTString);
 
 (* to table (define it as an expression to be used in macros) *)
 procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
@@ -252,13 +252,13 @@ procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
 function getstr(const ts: PTString): PChar;
 
 (* get the actual string (array of bytes) from a Lua value *)
-function svalue(const o: TValuefields): PChar;
+function svalue(const o: PTValue): PChar;
 
 (* get string length from 'TString *s' *)
 function tsslen(const s: PTString): SizeUInt;
 
 (* get string length from 'TValue *o' *)
-function vslen(const o: TValuefields): SizeUInt;
+function vslen(const o: PTValue): SizeUInt;
 
 
 (*
@@ -267,9 +267,9 @@ function vslen(const o: TValuefields): SizeUInt;
 *)
 function getudatamem(const u: PUdata): PByte;
 
-procedure setuservalue(const L: Plua_State; const u: PUdata; const o: TValuefields);
+procedure setuservalue(const L: Plua_State; const u: PUdata; const o: PTValue);
 
-procedure getuservalue(const L: Plua_State; const u: PUdata; var o: TValuefields);
+procedure getuservalue(const L: Plua_State; const u: PUdata; const o: PTValue);
 
 
 (*
@@ -277,9 +277,9 @@ procedure getuservalue(const L: Plua_State; const u: PUdata; var o: TValuefields
 ** types defined in fplua_types.pas
 *)
 
-function isLfunction(const o: TValuefields): Boolean;
+function isLfunction(const o: PTValue): Boolean;
 
-function getproto(const o: TValuefields): PProto;
+function getproto(const o: PTValue): PProto;
 
 
 (*
@@ -288,7 +288,7 @@ function getproto(const o: TValuefields): PProto;
 *)
 
 (* copy a value into a key without messing up field 'next' *)
-procedure setnodekey(const L: Plua_State; var key: TKey; const obj: TValuefields);
+procedure setnodekey(const L: Plua_State; var key: TKey; const obj: PTValue);
 
 (*
 ** 'module' operation for hashing (size is always a power of 2)
@@ -351,16 +351,16 @@ begin
 end;
 
 //#define val_(o)         ((o)->value_)
-function val_(const o: TValuefields): Value;
+function val_(const o: PTValue): Value;
 begin
-  Result := o.value_;
+  Result := o^.value_;
 end;
 
 (* raw type tag of a TValue *)
 //#define rttype(o)       ((o)->tt_)
-function rttype(const o: TValuefields): integer;
+function rttype(const o: PTValue): integer;
 begin
-  Result := o.tt_;
+  Result := o^.tt_;
 end;
 
 (* tag with no variants (bits 0-3) *)
@@ -372,153 +372,153 @@ end;
 
 (* type tag of a TValue (bits 0-3 for tags + variant bits 4-5) *)
 //#define ttype(o)        (rttype(o) & 0x3F)
-function ttype(const o: TValuefields): integer;
+function ttype(const o: PTValue): integer;
 begin
-  Result := o.tt_ and $3F;
+  Result := o^.tt_ and $3F;
 end;
 
 (* type tag of a TValue with no variants (bits 0-3) *)
 //#define ttnov(o)        (novariant(rttype(o)))
-function ttnov(const o: TValuefields): integer;
+function ttnov(const o: PTValue): integer;
 begin
-  Result := o.tt_ and $0F
+  Result := o^.tt_ and $0F
 end;
 
 //#define checktag(o,t)           (rttype(o) == (t))
-function checktag(const o: TValuefields; const t: Integer): Boolean;
+function checktag(const o: PTValue; const t: Integer): Boolean;
 begin
-  Result := (o.tt_ = t);
+  Result := (o^.tt_ = t);
 end;
 
 //#define checktype(o,t)          (ttnov(o) == (t))
-function checktype(const o: TValuefields; const t: Integer): Boolean;
+function checktype(const o: PTValue; const t: Integer): Boolean;
 begin
-  Result := ((o.tt_ and $0F) = t);
+  Result := ((o^.tt_ and $0F) = t);
 end;
 
 //#define ttisnumber(o)           checktype((o), LUA_TNUMBER)
-function ttisnumber(const o: TValuefields): Boolean;
+function ttisnumber(const o: PTValue): Boolean;
 begin
   Result := checktype(o, LUA_TNUMBER);
 end;
 
 //#define ttisfloat(o)            checktag((o), LUA_TNUMFLT)
-function ttisfloat(const o: TValuefields): Boolean;
+function ttisfloat(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TNUMFLT);
 end;
 
 //#define ttisinteger(o)          checktag((o), LUA_TNUMINT)
-function ttisinteger(const o: TValuefields): Boolean;
+function ttisinteger(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TNUMINT);
 end;
 
 //#define ttisnil(o)              checktag((o), LUA_TNIL)
-function ttisnil(const o: TValuefields): Boolean;
+function ttisnil(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TNIL);
 end;
 
 //#define ttisboolean(o)          checktag((o), LUA_TBOOLEAN)
-function ttisboolean(const o: TValuefields): Boolean;
+function ttisboolean(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TBOOLEAN);
 end;
 
 //#define ttislightuserdata(o)    checktag((o), LUA_TLIGHTUSERDATA)
-function ttislightuserdata(const o: TValuefields): Boolean;
+function ttislightuserdata(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TLIGHTUSERDATA);
 end;
 
 //#define ttisstring(o)           checktype((o), LUA_TSTRING)
-function ttisstring(const o: TValuefields): Boolean;
+function ttisstring(const o: PTValue): Boolean;
 begin
   Result := checktype(o, LUA_TSTRING);
 end;
 
 //#define ttisshrstring(o)        checktag((o), ctb(LUA_TSHRSTR))
-function ttisshrstring(const o: TValuefields): Boolean;
+function ttisshrstring(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TSHRSTR);
 end;
 
 //#define ttislngstring(o)        checktag((o), ctb(LUA_TLNGSTR))
-function ttislngstring(const o: TValuefields): Boolean;
+function ttislngstring(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TLNGSTR);
 end;
 
 //#define ttistable(o)            checktag((o), ctb(LUA_TTABLE))
-function ttistable(const o: TValuefields): Boolean;
+function ttistable(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TTABLE);
 end;
 
 //#define ttisfunction(o)         checktype(o, LUA_TFUNCTION)
-function ttisfunction(const o: TValuefields): Boolean;
+function ttisfunction(const o: PTValue): Boolean;
 begin
   Result := checktype(o, LUA_TFUNCTION);
 end;
 
 //#define ttisclosure(o)          ((rttype(o) & 0x1F) == LUA_TFUNCTION)
-function ttisclosure(const o: TValuefields): Boolean;
+function ttisclosure(const o: PTValue): Boolean;
 begin
   Result := ((rttype(o) and $1F) = LUA_TFUNCTION);
 end;
 
 //#define ttisCclosure(o)         checktag((o), ctb(LUA_TCCL))
-function ttisCclosure(const o: TValuefields): Boolean;
+function ttisCclosure(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TCCL);
 end;
 
 //#define ttisLclosure(o)         checktag((o), ctb(LUA_TLCL))
-function ttisLclosure(const o: TValuefields): Boolean;
+function ttisLclosure(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TLCL);
 end;
 
 //#define ttislcf(o)              checktag((o), LUA_TLCF)
-function ttislcf(const o: TValuefields): Boolean;
+function ttislcf(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TLCF);
 end;
 
 //#define ttisfulluserdata(o)     checktag((o), ctb(LUA_TUSERDATA))
-function ttisfulluserdata(const o: TValuefields): Boolean;
+function ttisfulluserdata(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TUSERDATA);
 end;
 
 //#define ttisthread(o)           checktag((o), ctb(LUA_TTHREAD))
-function ttisthread(const o: TValuefields): Boolean;
+function ttisthread(const o: PTValue): Boolean;
 begin
   Result := checktag(o, ctb_LUA_TTHREAD);
 end;
 
 //#define ttisdeadkey(o)          checktag((o), LUA_TDEADKEY)
-function ttisdeadkey(const o: TValuefields): Boolean;
+function ttisdeadkey(const o: PTValue): Boolean;
 begin
   Result := checktag(o, LUA_TDEADKEY);
 end;
 
 //#define ivalue(o)       check_exp(ttisinteger(o), val_(o).i)
-function ivalue(const o: TValuefields): lua_Integer;
+function ivalue(const o: PTValue): lua_Integer;
 begin
-  Result := check_exp(ttisinteger(o), o.value_.i);
+  Result := check_exp(ttisinteger(o), o^.value_.i);
 end;
 
 //#define fltvalue(o)     check_exp(ttisfloat(o), val_(o).n)
-function fltvalue(const o: TValuefields): lua_Number;
+function fltvalue(const o: PTValue): lua_Number;
 begin
-  Result := check_exp(ttisfloat(o), o.value_.n);
+  Result := check_exp(ttisfloat(o), o^.value_.n);
 end;
 
 //#define nvalue(o)       check_exp(ttisnumber(o), \
 //        (ttisinteger(o) ? cast_num(ivalue(o)) : fltvalue(o)))
-function nvalue(const o: TValuefields): lua_Number;
+function nvalue(const o: PTValue): lua_Number;
 begin
   check_exp(ttisnumber(o),nil);
   if ttisinteger(o) then
@@ -528,91 +528,91 @@ begin
 end;
 
 //#define gcvalue(o)      check_exp(iscollectable(o), val_(o).gc)
-function gcvalue(const o: TValuefields): PGCObject;
+function gcvalue(const o: PTValue): PGCObject;
 begin
-  Result := check_exp(iscollectable(o), o.value_.gc);
+  Result := check_exp(iscollectable(o), o^.value_.gc);
 end;
 
 //#define pvalue(o)       check_exp(ttislightuserdata(o), val_(o).p)
-function pvalue(const o: TValuefields): Pointer;
+function pvalue(const o: PTValue): Pointer;
 begin
-  Result := check_exp(ttislightuserdata(o), o.value_.p);
+  Result := check_exp(ttislightuserdata(o), o^.value_.p);
 end;
 
 //#define tsvalue(o)      check_exp(ttisstring(o), gco2ts(val_(o).gc))
-function tsvalue(const o: TValuefields): PTString;
+function tsvalue(const o: PTValue): PTString;
 begin
-  Result := check_exp(ttisstring(o), gco2ts(o.value_.gc));
+  Result := check_exp(ttisstring(o), gco2ts(o^.value_.gc));
 end;
 
 //#define uvalue(o)       check_exp(ttisfulluserdata(o), gco2u(val_(o).gc))
-function uvalue(const o: TValuefields): PUdata;
+function uvalue(const o: PTValue): PUdata;
 begin
-  Result := check_exp(ttisfulluserdata(o), gco2u(o.value_.gc));
+  Result := check_exp(ttisfulluserdata(o), gco2u(o^.value_.gc));
 end;
 
 //#define clvalue(o)      check_exp(ttisclosure(o), gco2cl(val_(o).gc))
-function clvalue(const o: TValuefields): PClosure;
+function clvalue(const o: PTValue): PClosure;
 begin
-  Result := check_exp(ttisclosure(o), gco2cl(o.value_.gc));
+  Result := check_exp(ttisclosure(o), gco2cl(o^.value_.gc));
 end;
 
 //#define clLvalue(o)     check_exp(ttisLclosure(o), gco2lcl(val_(o).gc))
-function clLvalue(const o: TValuefields): PLClosure;
+function clLvalue(const o: PTValue): PLClosure;
 begin
-  Result := check_exp(ttisLclosure(o), gco2lcl(o.value_.gc));
+  Result := check_exp(ttisLclosure(o), gco2lcl(o^.value_.gc));
 end;
 
 //#define clCvalue(o)     check_exp(ttisCclosure(o), gco2ccl(val_(o).gc))
-function clCvalue(const o: TValuefields): PCClosure;
+function clCvalue(const o: PTValue): PCClosure;
 begin
-  Result := check_exp(ttisCclosure(o), gco2ccl(o.value_.gc));
+  Result := check_exp(ttisCclosure(o), gco2ccl(o^.value_.gc));
 end;
 
 //#define fvalue(o)       check_exp(ttislcf(o), val_(o).f)
-function fvalue(const o: TValuefields): lua_CFunction;
+function fvalue(const o: PTValue): lua_CFunction;
 begin
-  Result := check_exp(ttislcf(o), o.value_.f);
+  Result := check_exp(ttislcf(o), o^.value_.f);
 end;
 
 //#define hvalue(o)       check_exp(ttistable(o), gco2t(val_(o).gc))
-function hvalue(const o: TValuefields): PTable;
+function hvalue(const o: PTValue): PTable;
 begin
-  Result := check_exp(ttistable(o), gco2t(o.value_.gc));
+  Result := check_exp(ttistable(o), gco2t(o^.value_.gc));
 end;
 
 //#define bvalue(o)       check_exp(ttisboolean(o), val_(o).b)
-function bvalue(const o: TValuefields): lu_int;
+function bvalue(const o: PTValue): lu_int;
 begin
-  Result := check_exp(ttisboolean(o), o.value_.b);
+  Result := check_exp(ttisboolean(o), o^.value_.b);
 end;
 
 //#define thvalue(o)      check_exp(ttisthread(o), gco2th(val_(o).gc))
-function thvalue(const o: TValuefields): Plua_State;
+function thvalue(const o: PTValue): Plua_State;
 begin
-  Result := check_exp(ttisthread(o), gco2th(o.value_.gc));
+  Result := check_exp(ttisthread(o), gco2th(o^.value_.gc));
 end;
 
 //#define deadvalue(o)    check_exp(ttisdeadkey(o), cast(void *, val_(o).gc))
-function deadvalue(const o: TValuefields): Pointer;
+function deadvalue(const o: PTValue): Pointer;
 begin
-  Result := check_exp(ttisdeadkey(o), o.value_.gc);
+  Result := check_exp(ttisdeadkey(o), o^.value_.gc);
 end;
 
 //#define l_isfalse(o)    (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
-function l_isfalse(const o: TValuefields): Boolean;
+function l_isfalse(const o: PTValue): Boolean;
 begin
   Result := ttisnil(o) or (ttisboolean(o) and (bvalue(o) = 0));
 end;
 
 //#define iscollectable(o)        (rttype(o) & BIT_ISCOLLECTABLE)
-function iscollectable(const o: TValuefields): Boolean;
+function iscollectable(const o: PTValue): Boolean;
 begin
-  Result := (o.tt_ and BIT_ISCOLLECTABLE) <> 0;
+  Result := (o^.tt_ and BIT_ISCOLLECTABLE) <> 0;
 end;
 
 //#define righttt(obj)            (ttype(obj) == gcvalue(obj)->tt)
-function righttt(const obj: TValuefields): Boolean;
+function righttt(const obj: PTValue): Boolean;
 begin
   Result := ttype(obj) = gcvalue(obj)^.header.tt;
 end;
@@ -620,7 +620,7 @@ end;
 //#define checkliveness(L,obj) \
 //        lua_longassert(!iscollectable(obj) || \
 //                (righttt(obj) && (L == NULL || !isdead(G(L),gcvalue(obj)))))
-procedure checkliveness(const L: Plua_State; const obj: TValuefields);
+procedure checkliveness(const L: Plua_State; const obj: PTValue);
 begin
   lua_longassert(
     not iscollectable(obj) or
@@ -635,79 +635,79 @@ begin
 end;
 
 //#define settt_(o,t)     ((o)->tt_=(t))
-procedure settt_(var o: TValuefields; const t: Integer);
+procedure settt_(const o: PTValue; const t: Integer);
 begin
-  o.tt_ := t;
+  o^.tt_ := t;
 end;
 
 //#define setfltvalue(obj,x) \
 //  { TValue *io=(obj); val_(io).n=(x); settt_(io, LUA_TNUMFLT); }
-procedure setfltvalue(var o: TValuefields; const x: lua_Number);
+procedure setfltvalue(const o: PTValue; const x: lua_Number);
 begin
-  o.value_.n := x;
+  o^.value_.n := x;
   settt_(o, LUA_TNUMFLT);
 end;
 
 //#define chgfltvalue(obj,x) \
 //  { TValue *io=(obj); lua_assert(ttisfloat(io)); val_(io).n=(x); }
-procedure chgfltvalue(var o: TValuefields; const x: lua_Number);
+procedure chgfltvalue(const o: PTValue; const x: lua_Number);
 begin
   lua_assert(ttisfloat(o));
-  o.value_.n := x;
+  o^.value_.n := x;
 end;
 
 //#define setivalue(obj,x) \
 //  { TValue *io=(obj); val_(io).i=(x); settt_(io, LUA_TNUMINT); }
-procedure setivalue(var o: TValuefields; const x: lua_Integer);
+procedure setivalue(const o: PTValue; const x: lua_Integer);
 begin
-  o.value_.i := x;
+  o^.value_.i := x;
   settt_(o, LUA_TNUMINT);
 end;
 
 //#define chgivalue(obj,x) \
 //  { TValue *io=(obj); lua_assert(ttisinteger(io)); val_(io).i=(x); }
-procedure chgivalue(var o: TValuefields; const x: lua_Integer);
+procedure chgivalue(const o: PTValue; const x: lua_Integer);
 begin
   lua_assert(ttisinteger(o));
-  o.value_.i := x;
+  o^.value_.i := x;
 end;
 
 //#define setnilvalue(obj) settt_(obj, LUA_TNIL)
-procedure setnilvalue(var obj: TValuefields);
+procedure setnilvalue(const obj: PTValue);
 begin
   settt_(obj, LUA_TNIL);
 end;
 
 //#define setfvalue(obj,x) \
 //  { TValue *io=(obj); val_(io).f=(x); settt_(io, LUA_TLCF); }
-procedure setfvalue(var o: TValuefields; const x: lua_CFunction);
+procedure setfvalue(const o: PTValue; const x: lua_CFunction);
 begin
-  o.value_.f := x;
+  o^.value_.f := x;
   settt_(o, LUA_TLCF);
 end;
 
 //#define setpvalue(obj,x) \
 //  { TValue *io=(obj); val_(io).p=(x); settt_(io, LUA_TLIGHTUSERDATA); }
-procedure setpvalue(var o: TValuefields; const x: Pointer);
+procedure setpvalue(const o: PTValue; const x: Pointer);
 begin
-  o.value_.p := x;
+  o^.value_.p := x;
   settt_(o, LUA_TLIGHTUSERDATA);
 end;
 
 //#define setbvalue(obj,x) \
 //  { TValue *io=(obj); val_(io).b=(x); settt_(io, LUA_TBOOLEAN); }
-procedure setbvalue(var o: TValuefields; const x: lu_int);
+procedure setbvalue(const o: PTValue; const x: lu_int);
 begin
-  o.value_.b := x;
+  o^.value_.b := x;
   settt_(o, LUA_TBOOLEAN);
 end;
 
 //#define setgcovalue(L,obj,x) \
 //  { TValue *io = (obj); GCObject *i_g=(x); \
 //    val_(io).gc = i_g; settt_(io, ctb(i_g->tt)); }
-procedure setgcovalue(const L: Plua_State; var o: TValuefields; const x: PGCObject);
+procedure setgcovalue(const L: Plua_State; const o: PTValue; const x: PGCObject);
 begin
-  o.value_.gc := x;
+  o^.value_.gc := x;
   settt_(o, ctb(x^.header.tt));
 end;
 
@@ -715,9 +715,9 @@ end;
 //  { TValue *io = (obj); TString *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(x_->tt)); \
 //    checkliveness(L,io); }
-procedure setsvalue(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure setsvalue(const L: Plua_State; const o: PTValue; const x: PTString);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, x^.header.tt);
   checkliveness(L, o);
 end;
@@ -726,9 +726,9 @@ end;
 //  { TValue *io = (obj); Udata *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TUSERDATA)); \
 //    checkliveness(L,io); }
-procedure setuvalue(const L: Plua_State; var o: TValuefields; const x: PUdata);
+procedure setuvalue(const L: Plua_State; const o: PTValue; const x: PUdata);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, ctb_LUA_TUSERDATA);
   checkliveness(L, o);
 end;
@@ -737,9 +737,9 @@ end;
 //  { TValue *io = (obj); lua_State *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TTHREAD)); \
 //    checkliveness(L,io); }
-procedure setthvalue(const L: Plua_State; var o: TValuefields; const x: Plua_State);
+procedure setthvalue(const L: Plua_State; const o: PTValue; const x: Plua_State);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, ctb_LUA_TTHREAD);
   checkliveness(L, o);
 end;
@@ -748,9 +748,9 @@ end;
 //  { TValue *io = (obj); LClosure *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TLCL)); \
 //    checkliveness(L,io); }
-procedure setclLvalue(const L: Plua_State; var o: TValuefields; const x: PLClosure);
+procedure setclLvalue(const L: Plua_State; const o: PTValue; const x: PLClosure);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, ctb_LUA_TLCL);
   checkliveness(L, o);
 end;
@@ -759,9 +759,9 @@ end;
 //  { TValue *io = (obj); CClosure *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TCCL)); \
 //    checkliveness(L,io); }
-procedure setclCvalue(const L: Plua_State; var o: TValuefields; const x: PCClosure);
+procedure setclCvalue(const L: Plua_State; const o: PTValue; const x: PCClosure);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, ctb_LUA_TCCL);
   checkliveness(L, o);
 end;
@@ -770,15 +770,15 @@ end;
 //  { TValue *io = (obj); Table *x_ = (x); \
 //    val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TTABLE)); \
 //    checkliveness(L,io); }
-procedure sethvalue(const L: Plua_State; var o: TValuefields; const x: PTable);
+procedure sethvalue(const L: Plua_State; const o: PTValue; const x: PTable);
 begin
-  o.value_.gc := obj2gco(x);
+  o^.value_.gc := obj2gco(x);
   settt_(o, ctb_LUA_TTABLE);
   checkliveness(L, o);
 end;
 
 //#define setdeadvalue(obj)       settt_(obj, LUA_TDEADKEY)
-procedure setdeadvalue(var obj: TValuefields);
+procedure setdeadvalue(const obj: PTValue);
 begin
   settt_(obj, LUA_TDEADKEY);
 end;
@@ -786,50 +786,50 @@ end;
 //#define setobj(L,obj1,obj2) \
 //        { TValue *io1=(obj1); *io1 = *(obj2); \
 //          (void)L; checkliveness(L,io1); }
-procedure setobj(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobj(const L: Plua_State; const obj1, obj2: PTValue);
 begin
-  obj1 := obj2;
+  obj1^ := obj2^;
   checkliveness(L, obj1);
 end;
 
 //#define setobjs2s       setobj
-procedure setobjs2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobjs2s(const L: Plua_State; const obj1, obj2: PTValue);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setobj2s        setobj
-procedure setobj2s(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobj2s(const L: Plua_State; const obj1, obj2: PTValue);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setsvalue2s     setsvalue
-procedure setsvalue2s(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure setsvalue2s(const L: Plua_State; const o: PTValue; const x: PTString);
 begin
   setsvalue(L, o, x);
 end;
 
 //#define sethvalue2s     sethvalue
-procedure sethvalue2s(const L: Plua_State; var o: TValuefields; const x: PTable);
+procedure sethvalue2s(const L: Plua_State; const o: PTValue; const x: PTable);
 begin
   sethvalue(L, o, x);
 end;
 
 //#define setobjt2t       setobj
-procedure setobjt2t(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobjt2t(const L: Plua_State; const obj1, obj2: PTValue);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setobj2n        setobj
-procedure setobj2n(const L: Plua_State; var obj1: TValuefields; const obj2: TValuefields);
+procedure setobj2n(const L: Plua_State; const obj1, obj2: PTValue);
 begin
   setobj(L, obj1, obj2);
 end;
 
 //#define setsvalue2n     setsvalue
-procedure setsvalue2n(const L: Plua_State; var o: TValuefields; const x: PTString);
+procedure setsvalue2n(const L: Plua_State; const o: PTValue; const x: PTString);
 begin
   setsvalue(L, o, x);
 end;
@@ -838,7 +838,7 @@ end;
 procedure setobj2t(const L: Plua_State; const o1, o2: PTValue);
 begin
   o1^ := o2^;
-  checkliveness(L,o1^.fields);
+  checkliveness(L,o1);
 end;
 
 //#define getstr(ts)  \
@@ -849,7 +849,7 @@ begin
 end;
 
 //#define svalue(o)       getstr(tsvalue(o))
-function svalue(const o: TValuefields): PChar;
+function svalue(const o: PTValue): PChar;
 begin
   Result := getstr(tsvalue(o));
 end;
@@ -864,7 +864,7 @@ begin
 end;
 
 //#define vslen(o)        tsslen(tsvalue(o))
-function vslen(const o: TValuefields): SizeUInt;
+function vslen(const o: PTValue): SizeUInt;
 begin
   Result := tsslen(tsvalue(o));
 end;
@@ -880,9 +880,9 @@ end;
 //        { const TValue *io=(o); Udata *iu = (u); \
 //          iu->user_ = io->value_; iu->ttuv_ = rttype(io); \
 //          checkliveness(L,io); }
-procedure setuservalue(const L: Plua_State; const u: PUdata; const o: TValuefields);
+procedure setuservalue(const L: Plua_State; const u: PUdata; const o: PTValue);
 begin
-  u^.user_ := o.value_;
+  u^.user_ := o^.value_;
   u^.ttuv_ := rttype(o);
   checkliveness(L, o);
 end;
@@ -891,21 +891,21 @@ end;
 //        { TValue *io=(o); const Udata *iu = (u); \
 //          io->value_ = iu->user_; settt_(io, iu->ttuv_); \
 //          checkliveness(L,io); }
-procedure getuservalue(const L: Plua_State; const u: PUdata; var o: TValuefields);
+procedure getuservalue(const L: Plua_State; const u: PUdata; const o: PTValue);
 begin
-  o.value_ := u^.user_;
+  o^.value_ := u^.user_;
   settt_(o, u^.ttuv_);
   checkliveness(L, o);
 end;
 
 //#define isLfunction(o)  ttisLclosure(o)
-function isLfunction(const o: TValuefields): Boolean;
+function isLfunction(const o: PTValue): Boolean;
 begin
   Result := ttisLclosure(o);
 end;
 
 //#define getproto(o)     (clLvalue(o)->p)
-function getproto(const o: TValuefields): PProto;
+function getproto(const o: PTValue): PProto;
 begin
   Result := clLvalue(o)^.p;
 end;
@@ -914,9 +914,9 @@ end;
 //        { TKey *k_=(key); const TValue *io_=(obj); \
 //          k_->nk.value_ = io_->value_; k_->nk.tt_ = io_->tt_; \
 //          (void)L; checkliveness(L,io_); }
-procedure setnodekey(const L: Plua_State; var key: TKey; const obj: TValuefields);
+procedure setnodekey(const L: Plua_State; var key: TKey; const obj: PTValue);
 begin
-  key.nk.fields := obj; // value_ and tt_
+  key.nk.v := obj^; // value_ and tt_
   checkliveness(L, obj);
 end;
 

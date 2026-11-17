@@ -52,7 +52,7 @@ procedure lua_settop(const L: Plua_State; const idx: Integer);
 procedure lua_pushvalue(const L: Plua_State; const idx: Integer);
 procedure lua_rotate(const L: Plua_State; const idx, n: Integer);
 procedure lua_copy(const L: Plua_State; const fromidx, toidx: Integer);
-function lua_checkstack(const L: Plua_State; const n: Integer): Integer;
+function lua_checkstack(const L: Plua_State; const n: Integer): Boolean;
 
 procedure lua_xmove(const from, to_: Plua_State; const n: Integer);
 
@@ -472,7 +472,109 @@ function lua_gethookcount(const L: Plua_State): Integer;
 implementation
 
 uses
-  Math;
+  Math,
+  lapi, ldebug, ldo, lfunc, lgc, lmem, lobject, lstate, lstring, ltable, ltm, lundump, lvm;
+
+(* value at a non-valid index *)
+//#define NONVALIDVALUE         cast(TValue *, luaO_nilobject)
+const
+  NONVALIDVALUE: PTValue = @NILCONSTANT;
+
+(* corresponding test *)
+//#define isvalid(o)    ((o) != luaO_nilobject)
+function isvalid(const o: PTValue): Boolean;
+begin
+  Result := (o <> luaO_nilobject);
+end;
+
+(* test for pseudo index *)
+//#define ispseudo(i)           ((i) <= LUA_REGISTRYINDEX)
+function ispseudo(const i: Integer): Boolean;
+begin
+  Result := (i <= LUA_REGISTRYINDEX);
+end;
+
+(* test for upvalue *)
+//#define isupvalue(i)          ((i) < LUA_REGISTRYINDEX)
+function isupvalue(const i: Integer): Boolean;
+begin
+  Result := (i < LUA_REGISTRYINDEX);
+end;
+
+(* test for valid but not pseudo index *)
+//#define isstackindex(i, o)    (isvalid(o) && !ispseudo(i))
+function isstackindex(const i: Integer; const o: PTValue): Boolean;
+begin
+  Result := (isvalid(o) and not ispseudo(i));
+end;
+
+//#define api_checkvalidindex(l,o)  api_check(l, isvalid(o), "invalid index")
+procedure api_checkvalidindex(const L: Plua_State; const o: PTValue);
+begin
+  api_check(L, isvalid(o), 'invalid index');
+end;
+
+//#define api_checkstackindex(l, i, o)  \
+//      api_check(l, isstackindex(i, o), "index not in the stack")
+procedure api_checkstackindex(const L: Plua_State; const i: Integer; const o: PTValue);
+begin
+  api_check(L, isstackindex(i, o), 'index not in the stack');
+end;
+
+//static TValue *index2addr (lua_State *L, int idx)
+function index2addr(const L: Plua_State; idx: Integer): PTValue;
+var
+  ci: PCallInfo;
+  o: PTValue;
+  func: PCClosure;
+begin
+  ci := L^.ci;
+  if (idx > 0) then
+  begin
+    o := ci^.func + idx;
+    api_check(L, idx <= (ci^.top - (ci^.func + 1)), 'unacceptable index');
+    if (o >= L^.top) then
+      Result := NONVALIDVALUE
+    else
+      Result := o;
+  end
+  else if (not ispseudo(idx)) then  //* negative index */
+  begin
+    api_check(L, (idx <> 0) and (-idx <= (L^.top - (ci^.func + 1))), 'invalid index');
+    Exit(L^.top + idx);
+  end
+  else if (idx = LUA_REGISTRYINDEX) then
+    exit(@(L^.l_G^.l_registry))
+  else //* upvalues */
+  begin
+    idx := LUA_REGISTRYINDEX - idx;
+    api_check(L, (idx <= MAXUPVAL + 1), 'upvalue index too large');
+    if (ttislcf(ci^.func)) then //* light C function? */
+      Exit(NONVALIDVALUE)  //* it has no upvalues */
+    else
+    begin
+      func := clCvalue(ci^.func);
+      if (idx <= func^.header.nupvalues) then
+        Result := @(CClosure_upvalue(func)[idx-1])
+      else
+        Result := NONVALIDVALUE;
+    end;
+  end;
+end;
+
+
+(*
+** to be called by 'lua_checkstack' in protected mode, to grow stack
+** capturing memory errors
+*)
+//static void growstack (lua_State *L, void *ud)
+procedure growstack(L: Plua_State; ud: Pointer);
+var
+  size: Integer;
+begin
+  size := PInteger(ud)^;
+  luaD_growstack(L, size);
+end;
 
 function lua_newstate(const f: lua_Alloc; const ud: Pointer): Plua_State;
 begin
@@ -491,52 +593,173 @@ end;
 
 function lua_atpanic(const L: Plua_State; const panicf: lua_CFunction): lua_CFunction;
 begin
-
+  lua_lock(L);
+  Result := G(L)^.panic;
+  G(L)^.panic := panicf;
+  lua_unlock(L);
 end;
 
 function lua_version(const L: Plua_State): Plua_Number;
+const
+  version: lua_Number = LUA_VERSION_NUM;
 begin
-
+  if (L = Nil) then
+    Result := @version
+  else
+    Result := G(L)^.version;
 end;
 
+(*
+** convert an acceptable stack index into an absolute index
+*)
 function lua_absindex(const L: Plua_State; const idx: Integer): Integer;
 begin
-
+  if (idx > 0) or ispseudo(idx) then
+    Result := idx
+  else
+    Result := cast_int(L^.top - L^.ci^.func) + idx;
 end;
 
 function lua_gettop(const L: Plua_State): Integer;
 begin
-
+  Result := cast_int(L^.top - (L^.ci^.func + 1));
 end;
 
 procedure lua_settop(const L: Plua_State; const idx: Integer);
+var
+  func: StkId;
 begin
-
+  func := L^.ci^.func;
+  lua_lock(L);
+  if (idx >= 0) then
+  begin
+    api_check(L, idx <= (L^.stack_last - (func + 1)), 'new top too large');
+    while L^.top < ((func + 1) + idx) do
+    begin
+      setnilvalue(L^.top);
+      inc(L^.top);
+    end;
+    L^.top := (func + 1) + idx;
+  end
+  else
+  begin
+    api_check(L, -(idx+1) <= (L^.top - (func + 1)), 'invalid new top');
+    L^.top := L^.top + (idx+1);  //* 'subtract' index (index is negative) */
+  end;
+  lua_unlock(L);
 end;
 
 procedure lua_pushvalue(const L: Plua_State; const idx: Integer);
 begin
-
+  lua_lock(L);
+  setobj2s(L, L^.top, index2addr(L, idx));
+  api_incr_top(L);
+  lua_unlock(L);
 end;
 
-procedure lua_rotate(const L: Plua_State; const idx, n: Integer);
+(*
+** Reverse the stack segment from 'from' to 'to'
+** (auxiliary to 'lua_rotate')
+*)
+//static void reverse (lua_State *L, StkId from, StkId )
+procedure reverse(const L: Plua_State; from, to_: StkId);
+var
+  temp: TValue;
 begin
+  while from < to_ do
+  begin
+    setobj(L, @temp, from);
+    setobjs2s(L, from, to_);
+    setobj2s(L, to_, @temp);
+    inc(from);
+    dec(to_);
+  end;
+end;
 
+
+(*
+** Let x = AB, where A is a prefix of length 'n'. Then,
+** rotate x n == BA. But BA == (A^r . B^r)^r.
+*)
+procedure lua_rotate(const L: Plua_State; const idx, n: Integer);
+var
+  p, t, m: StkId;
+begin
+  lua_lock(L);
+  t := L^.top - 1;  //* end of stack segment being rotated */
+  p := index2addr(L, idx);  //* start of segment */
+  api_checkstackindex(L, idx, p);
+  if n >= 0 then
+  begin
+    api_check(L, n <= (t - p + 1), 'invalid "n"');
+    m := t - n; //* end of prefix */
+  end
+  else
+  begin
+    api_check(L, -n <= (t - p + 1), 'invalid "n"');
+    m := p - n - 1; //* end of prefix */
+  end;
+  reverse(L, p, m);  //* reverse the prefix with length 'n' */
+  reverse(L, m + 1, t);  //* reverse the suffix */
+  reverse(L, p, t); //* reverse the entire segment */
+  lua_unlock(L);
 end;
 
 procedure lua_copy(const L: Plua_State; const fromidx, toidx: Integer);
+var
+  fr, to_: PTValue;
 begin
-
+  lua_lock(L);
+  fr := index2addr(L, fromidx);
+  to_:= index2addr(L, toidx);
+  api_checkvalidindex(L, to_);
+  setobj(L, to_, fr);
+  if (isupvalue(toidx)) then //* function upvalue? */
+    luaC_barrier(L, obj2gco(clCvalue(L^.ci^.func)), fr);
+  (* LUA_REGISTRYINDEX does not need gc barrier
+     (collector revisits it before finishing collection) *)
+  lua_unlock(L);
 end;
 
-function lua_checkstack(const L: Plua_State; const n: Integer): Integer;
+function lua_checkstack(const L: Plua_State; const n: Integer): Boolean;
+var
+  ci: PCallInfo;
+  inuse: Integer;
 begin
-
+  ci := L^.ci;
+  lua_lock(L);
+  api_check(L, (n >= 0), 'negative "n"');
+  if (L^.stack_last - L^.top) > n then //* stack large enough? */
+    Result := True  //* yes; check is OK */
+  else //* no; need to grow stack */
+  begin
+    inuse := cast_int(L^.top - L^.stack) + EXTRA_STACK;
+    if inuse > (LUAI_MAXSTACK - n) then //* can grow without overflow? */
+      Result := False  //* no */
+    else  //* try to grow stack */
+      Result := (luaD_rawrunprotected(L, @growstack, @n) = LUA_OK);
+  end;
+  if Result and (ci^.top < (L^.top + n)) then
+    ci^.top := L^.top + n;  //* adjust frame top */
+  lua_unlock(L);
 end;
 
 procedure lua_xmove(const from, to_: Plua_State; const n: Integer);
+var
+  i: Integer;
 begin
-
+  if (from = to_) then Exit;
+  lua_lock(to_);
+  api_checknelems(from, n);
+  api_check(from, G(from) = G(to_), 'moving among independent states');
+  api_check(from, (to_^.ci^.top - to_^.top) >= n, 'stack overflow');
+  from^.top := from^.top - n;
+  for i := 0 to n-1 do
+  begin
+    setobj2s(to_, to_^.top, from^.top + i);
+    inc(to_^.top);  //* stack already checked by previous 'api_check' */
+  end;
+  lua_unlock(to_);
 end;
 
 function lua_isnumber(const L: Plua_State; const idx: Integer): lu_int;
@@ -565,8 +788,14 @@ begin
 end;
 
 function lua_type(const L: Plua_State; const idx: Integer): lu_int;
+var
+  o: StkId;
 begin
-
+  o := index2addr(L, idx);
+  if isvalid(o) then
+    Result := ttnov(o)
+  else
+    Result := LUA_TNONE;
 end;
 
 function lua_typename(const L: Plua_State; const tp: Integer): PChar;

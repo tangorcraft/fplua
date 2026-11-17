@@ -89,9 +89,9 @@ procedure luaC_condGC(const L: Plua_State); // stub declaration, this macro need
 (* more often than not, 'pre'/'pos' are empty *)
 procedure luaC_checkGC(const L: Plua_State);
 
-procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: TValuefields);
+procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: PTValue);
 
-procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: TValuefields);
+procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: PTValue);
 
 procedure luaC_objbarrier(const L: Plua_State; const p, o: PGCObject);
 
@@ -255,7 +255,7 @@ end;
 //#define luaC_barrier(L,p,v) (  \
 //        (iscollectable(v) && isblack(p) && iswhite(gcvalue(v))) ?  \
 //        luaC_barrier_(L,obj2gco(p),gcvalue(v)) : cast_void(0))
-procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: TValuefields);
+procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: PTValue);
 begin
   if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
     luaC_barrier_(L, p, gcvalue(v));
@@ -264,7 +264,7 @@ end;
 //#define luaC_barrierback(L,p,v) (  \
 //        (iscollectable(v) && isblack(p) && iswhite(gcvalue(v))) ? \
 //        luaC_barrierback_(L,p) : cast_void(0))
-procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: TValuefields);
+procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: PTValue);
 begin
   if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
     luaC_barrierback_(L, p);
@@ -284,7 +284,7 @@ end;
 //         luaC_upvalbarrier_(L,uv) : cast_void(0))
 procedure luaC_upvalbarrier(const L: Plua_State; const uv: PUpVal);
 begin
-  if iscollectable(uv^.v^.fields) and not upisopen(uv^) then
+  if iscollectable(uv^.v) and not upisopen(uv^) then
     luaC_upvalbarrier_(L,uv);
 end;
 

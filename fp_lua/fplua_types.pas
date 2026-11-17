@@ -100,13 +100,14 @@ type
   end;
 
 //#define TValuefields    Value value_; int tt_
-  TValuefields = record
-    value_: Value;
-    tt_: Integer;
-  end;
+  //TValuefields = record
+  //  value_: Value;
+  //  tt_: Integer;
+  //end;
 
   TValue = record
-    fields: TValuefields;
+    value_: Value;
+    tt_: Integer;
   end;
   lua_TValue = TValue;
 
@@ -128,13 +129,13 @@ type
   end;
 
   TKey_nk = record
-    fields: TValuefields;
+    v: TValue;
     next: Integer; //* for chaining (offset for next node) */
   end;
 
   TKey = record case Byte of
     1:(nk: TKey_nk);
-    2:(tvk: TValue);
+    2:(tvk: TValue); // same as nk.v
   end;
 
   Node = record
@@ -459,7 +460,6 @@ procedure condchangemem(const L: Plua_State);
 
 function CClosure_upvalue(const v: PCClosure): PTValue; inline;
 function LClosure_upvals(const v: PLClosure): PPUpVal; inline;
-operator :=(O: PTValue) : TValuefields; inline;
 
 implementation
 
@@ -520,11 +520,6 @@ end;
 function LClosure_upvals(const v: PLClosure): PPUpVal;
 begin
   Result := @v^.upvals_0;
-end;
-
-operator := (O: PTValue): TValuefields;
-begin
-  Result := O^.fields;
 end;
 
 end.

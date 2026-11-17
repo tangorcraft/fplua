@@ -15,7 +15,7 @@ uses
 //#else
 //#define cvt2str(o)    0       /* no conversion from numbers to strings */
 //#endif
-function cvt2str(const o: TValuefields): Boolean;
+function cvt2str(const o: PTValue): Boolean;
 
 
 //#if !defined(LUA_NOCVTS2N)
@@ -23,7 +23,7 @@ function cvt2str(const o: TValuefields): Boolean;
 //#else
 //#define cvt2num(o)    0       /* no conversion from strings to numbers */
 //#endif
-function cvt2num(const o: TValuefields): Boolean;
+function cvt2num(const o: PTValue): Boolean;
 
 
 (*
@@ -146,7 +146,7 @@ implementation
 uses
   lobject, ltable, lgc;
 
-function cvt2str(const o: TValuefields): Boolean;
+function cvt2str(const o: PTValue): Boolean;
 begin
   {$ifndef LUA_NOCVTN2S}
   Result := ttisnumber(o);
@@ -155,7 +155,7 @@ begin
   {$endif}
 end;
 
-function cvt2num(const o: TValuefields): Boolean;
+function cvt2num(const o: PTValue): Boolean;
 begin
   {$ifndef LUA_NOCVTS2N}
   Result := ttisstring(o);
@@ -168,9 +168,9 @@ end;
 //      (ttisfloat(o) ? (*(n) = fltvalue(o), 1) : luaV_tonumber_(o,n))
 function tonumber(const o: PTValue; const n: Plua_Number): Integer;
 begin
-  if ttisfloat(o^.fields) then
+  if ttisfloat(o) then
   begin
-    n^ := fltvalue(o^.fields);
+    n^ := fltvalue(o);
     Result := 1;
   end
   else
@@ -181,9 +181,9 @@ end;
 //    (ttisinteger(o) ? (*(i) = ivalue(o), 1) : luaV_tointeger(o,i,LUA_FLOORN2I))
 function tointeger(const o: PTValue; const i: Plua_Integer): Integer;
 begin
-  if ttisinteger(o^.fields) then
+  if ttisinteger(o) then
   begin
-    i^ := ivalue(o^.fields);
+    i^ := ivalue(o);
     Result := 1;
   end
   else
@@ -240,15 +240,15 @@ end;
 function luaV_fastget_val(const L: Plua_State; const t: PTValue; const k: PTValue;
   out slot: PTValue): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin //* not a table; 'slot' is NULL and result is 0 */
     slot := nil;
     Result := False;
   end
   else
   begin //* else, do raw access */
-    slot := luaH_get(hvalue(t^.fields), k);
-    Result := not ttisnil(slot^.fields); //* result not nil? */
+    slot := luaH_get(hvalue(t), k);
+    Result := not ttisnil(slot); //* result not nil? */
   end;
 end;
 
@@ -256,15 +256,15 @@ end;
 function luaV_fastget_int(const L: Plua_State; const t: PTValue; const k: lua_Integer;
   out slot: PTValue): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin //* not a table; 'slot' is NULL and result is 0 */
     slot := nil;
     Result := False;
   end
   else
   begin //* else, do raw access */
-    slot := luaH_getint(hvalue(t^.fields), k);
-    Result := not ttisnil(slot^.fields); //* result not nil? */
+    slot := luaH_getint(hvalue(t), k);
+    Result := not ttisnil(slot); //* result not nil? */
   end;
 end;
 
@@ -272,15 +272,15 @@ end;
 function luaV_fastget_str(const L: Plua_State; const t: PTValue; const k: PTString;
   out slot: PTValue): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin //* not a table; 'slot' is NULL and result is 0 */
     slot := nil;
     Result := False;
   end
   else
   begin //* else, do raw access */
-    slot := luaH_getstr(hvalue(t^.fields), k);
-    Result := not ttisnil(slot^.fields); //* result not nil? */
+    slot := luaH_getstr(hvalue(t), k);
+    Result := not ttisnil(slot); //* result not nil? */
   end;
 end;
 
@@ -292,7 +292,7 @@ var
   slot: PTValue;
 begin
   if luaV_fastget_val(L,t,k,slot) then
-    setobj2s(L, v^.fields, slot^.fields)
+    setobj2s(L, v, slot)
   else
     luaV_finishget(L,t,k,v,slot);
 end;
@@ -301,19 +301,19 @@ end;
 function luaV_fastset_val(const L: Plua_State; const t: PTValue; const k: PTValue; out
   slot: PTValue; const v: StkId): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin
     slot := nil;
     Result := False;
   end
   else
   begin
-    slot := luaH_get(hvalue(t^.fields), k);
-    if ttisnil(slot^.fields) then
+    slot := luaH_get(hvalue(t), k);
+    if ttisnil(slot) then
       Result := False
     else
     begin
-      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t), v);
       setobj2t(L, slot, v);
       Result := True;
     end;
@@ -323,19 +323,19 @@ end;
 function luaV_fastset_int(const L: Plua_State; const t: PTValue; const k: lua_Integer; out
   slot: PTValue; const v: StkId): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin
     slot := nil;
     Result := False;
   end
   else
   begin
-    slot := luaH_getint(hvalue(t^.fields), k);
-    if ttisnil(slot^.fields) then
+    slot := luaH_getint(hvalue(t), k);
+    if ttisnil(slot) then
       Result := False
     else
     begin
-      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t), v);
       setobj2t(L, slot, v);
       Result := True;
     end;
@@ -345,19 +345,19 @@ end;
 function luaV_fastset_str(const L: Plua_State; const t: PTValue; const k: PTString; out
   slot: PTValue; const v: StkId): Boolean;
 begin
-  if not ttistable(t^.fields) then
+  if not ttistable(t) then
   begin
     slot := nil;
     Result := False;
   end
   else
   begin
-    slot := luaH_getstr(hvalue(t^.fields), k);
-    if ttisnil(slot^.fields) then
+    slot := luaH_getstr(hvalue(t), k);
+    if ttisnil(slot) then
       Result := False
     else
     begin
-      luaC_barrierback(L, hvalue(t^.fields), v^.fields);
+      luaC_barrierback(L, hvalue(t), v);
       setobj2t(L, slot, v);
       Result := True;
     end;
