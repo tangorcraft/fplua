@@ -241,7 +241,7 @@ function lua_yield(const L: Plua_State; const n: Integer): Integer;
 *)
 // TODO
 //LUA_API int (lua_gc) (lua_State *L, int what, int data);
-function lua_gc(const L: Plua_State; const what, data: Integer): Integer;
+function lua_gc(const L: Plua_State; const what: Integer; data: Integer): Integer;
 
 (*
 ** miscellaneous functions
@@ -1658,9 +1658,67 @@ begin
   lua_yieldk(L, n, 0, Nil);
 end;
 
-function lua_gc(const L: Plua_State; const what, data: Integer): Integer;
+function lua_gc(const L: Plua_State; const what: Integer; data: Integer): Integer;
+var
+  g: Pglobal_State;
+  debt: l_mem;
+  oldrunning: lu_byte;
 begin
-
+  Result := 0;
+  lua_lock(L);
+  g := L^.l_G;
+  case (what) of
+    LUA_GCSTOP:
+      g^.gcrunning := 0;
+    LUA_GCRESTART:
+    begin
+      luaE_setdebt(g, 0);
+      g^.gcrunning := 1;
+    end;
+    LUA_GCCOLLECT:
+      luaC_fullgc(L, 0);
+    LUA_GCCOUNT:
+      //* GC values are expressed in Kbytes: #bytes/2^10 */
+      Result := cast_int(gettotalbytes(g) shr 10);
+    LUA_GCCOUNTB:
+      Result := cast_int(gettotalbytes(g) and $03ff);
+    LUA_GCSTEP:
+    begin
+      debt := 1;  //* =1 to signal that it did an actual step */
+      oldrunning := g^.gcrunning;
+      g^.gcrunning := 1;  //* allow GC to run */
+      if (data = 0) then
+      begin
+        luaE_setdebt(g, -GCSTEPSIZE);  //* to do a "small" step */
+        luaC_step(L);
+      end
+      else
+      begin //* add 'data' to total debt */
+        debt := l_mem(data) * 1024 + g^.GCdebt;
+        luaE_setdebt(g, debt);
+        luaC_checkGC(L);
+      end;
+      g^.gcrunning := oldrunning;  //* restore previous state */
+      if (debt > 0) and (g^.gcstate = GCSpause) then //* end of cycle? */
+        Result := 1;  //* signal it */
+    end;
+    LUA_GCSETPAUSE:
+    begin
+      Result := g^.gcpause;
+      g^.gcpause := data;
+    end;
+    LUA_GCSETSTEPMUL:
+    begin
+      Result := g^.gcstepmul;
+      if (data < 40) then data := 40;  //* avoid ridiculous low values (and 0) */
+      g^.gcstepmul := data;
+    end;
+    LUA_GCISRUNNING:
+      Result := g^.gcrunning;
+    else
+      Result := -1;  //* invalid option */
+  end;
+  lua_unlock(L);
 end;
 
 function lua_error(const L: Plua_State): Integer;

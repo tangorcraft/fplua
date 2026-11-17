@@ -118,7 +118,7 @@ function obj2gco(const v: Pointer): PGCObject;
 
 (* actual number of total bytes allocated *)
 //#define gettotalbytes(g)        cast(lu_mem, (g)->totalbytes + (g)->GCdebt)
-function gettotalbytes(const g: global_State): lu_mem;
+function gettotalbytes(const g: Pglobal_State): lu_mem;
 
 { TODO
 LUAI_FUNC void luaE_setdebt (global_State *g, l_mem debt);
@@ -127,7 +127,7 @@ LUAI_FUNC CallInfo *luaE_extendCI (lua_State *L);
 LUAI_FUNC void luaE_freeCI (lua_State *L);
 LUAI_FUNC void luaE_shrinkCI (lua_State *L);
 }
-procedure luaE_setdebt(const g: global_State; const debt: l_mem);
+procedure luaE_setdebt(const g: Pglobal_State; const debt: l_mem);
 procedure luaE_freethread(const L, L1: lua_State);
 function luaE_extendCI(const L: lua_State): PCallInfo;
 procedure luaE_freeCI(const L: lua_State);
@@ -215,12 +215,12 @@ begin
   Result := check_exp(novariant(cast_u(v)^.gc.header.tt) < LUA_TDEADKEY, v);
 end;
 
-function gettotalbytes(const g: global_State): lu_mem;
+function gettotalbytes(const g: Pglobal_State): lu_mem;
 begin
-  Result := g.totalbytes + g.GCdebt;
+  Result := g^.totalbytes + g^.GCdebt;
 end;
 
-procedure luaE_setdebt(const g: global_State; const debt: l_mem);
+procedure luaE_setdebt(const g: Pglobal_State; const debt: l_mem);
 begin
 
 end;
