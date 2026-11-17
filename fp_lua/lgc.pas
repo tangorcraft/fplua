@@ -108,6 +108,7 @@ function luaC_newobj(const L: Plua_State; const tt: Integer; const sz: SizeUInt)
 //procedure luaC_barrier_(const L: Plua_State; const o, v: PGCObject);
 //procedure luaC_barrierback_(const L: Plua_State; const o: PTable);
 //procedure luaC_upvalbarrier_(const L: Plua_State; const uv: PUpVal);
+
 procedure luaC_checkfinalizer(const L: Plua_State; const o: PGCObject; const mt: PTable);
 procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 

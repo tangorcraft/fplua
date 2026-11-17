@@ -212,7 +212,7 @@ end;
 //        check_exp(novariant((v)->tt) < LUA_TDEADKEY, (&(cast_u(v)->gc)))
 function obj2gco(const v: Pointer): PGCObject;
 begin
-  Result := check_exp(cast_u(v)^.gc.header.tt < LUA_TDEADKEY, v);
+  Result := check_exp(novariant(cast_u(v)^.gc.header.tt) < LUA_TDEADKEY, v);
 end;
 
 function gettotalbytes(const g: global_State): lu_mem;

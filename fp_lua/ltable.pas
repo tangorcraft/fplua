@@ -25,7 +25,7 @@ function gkey(const n: PNode): PTValue;
 *)
 function wgkey(const n: PNode): PTValue;
 
-procedure invalidateTMcache(var t: Table);
+procedure invalidateTMcache(const t: PTable);
 
 (* true when 't' is using 'dummynode' as its hash part *)
 function isdummy(const t: PTable): Boolean;
@@ -111,7 +111,7 @@ end;
 //#define invalidateTMcache(t)  ((t)->flags = 0)
 procedure invalidateTMcache(var t: Table);
 begin
-  t.flags := 0;
+  t^.flags := 0;
 end;
 
 //#define isdummy(t)            ((t)->lastfree == NULL)

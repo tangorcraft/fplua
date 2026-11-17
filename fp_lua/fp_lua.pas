@@ -1151,7 +1151,7 @@ begin
     api_incr_top(L);
     luaV_finishget(L, t, L^.top - 1, L^.top - 1, slot);
   end;
-  lua_unlock(L);
+  lua_unlock(L); //* lock done by caller */
   Result := ttnov(L^.top - 1);
 end;
 
@@ -1300,49 +1300,178 @@ begin
   Result := ttnov(L^.top - 1);
 end;
 
-procedure lua_setglobal(const L: Plua_State; const name: PChar);
+(*
+** t[k] = value at the top of the stack (where 'k' is a string)
+*)
+//static void auxsetstr (lua_State *L, const TValue *t, const char *k)
+procedure auxsetstr(const L: Plua_State; const t: PTValue; const k: PChar);
+var
+  slot: PTValue;
+  str: PTString;
 begin
+  str := luaS_new(L, k);
+  api_checknelems(L, 1);
+  if (luaV_fastset_str(L, t, str, slot, L^.top - 1)) then
+    dec(L^.top)  //* pop value */
+  else
+  begin
+    setsvalue2s(L, L^.top, str);  //* push 'str' (to make it a TValue) */
+    api_incr_top(L);
+    luaV_finishset(L, t, L^.top - 1, L^.top - 2, slot);
+    L^.top := L^.top - 2;  //* pop value and key */
+  end;
+  lua_unlock(L); //* lock done by caller */
+end;
 
+procedure lua_setglobal(const L: Plua_State; const name: PChar);
+var
+  reg: PTable;
+begin
+  reg := hvalue(@(G(L)^.l_registry));
+  lua_lock(L);  //* unlock done in 'auxsetstr' */
+  auxsetstr(L, luaH_getint(reg, LUA_RIDX_GLOBALS), name);
 end;
 
 procedure lua_settable(const L: Plua_State; const idx: Integer);
+var
+  t: StkId;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 2);
+  t := index2addr(L, idx);
+  luaV_settable(L, t, L^.top - 2, L^.top - 1);
+  L^.top := L^.top - 2;  //* pop index and value */
+  lua_unlock(L);
 end;
 
 procedure lua_setfield(const L: Plua_State; const idx: Integer; const k: PChar);
 begin
-
+  lua_lock(L);  //* unlock done in 'auxsetstr' */
+  auxsetstr(L, index2addr(L, idx), k);
 end;
 
 procedure lua_seti(const L: Plua_State; const idx: Integer; const n: lua_Integer);
+var
+  t: StkId;
+  slot: PTValue;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  t := index2addr(L, idx);
+  if (luaV_fastset_int(L, t, n, slot, L^.top - 1))
+    dec(L^.top)  //* pop value */
+  else
+  begin
+    setivalue(L^.top, n);
+    api_incr_top(L);
+    luaV_finishset(L, t, L^.top - 1, L^.top - 2, slot);
+    L^.top := L^.top - 2;  //* pop value and key */
+  end;
+  lua_unlock(L);
 end;
 
 procedure lua_rawset(const L: Plua_State; const idx: Integer);
+var
+  o: StkId;
+  slot: PTValue;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 2);
+  o := index2addr(L, idx);
+  api_check(L, ttistable(o), 'table expected');
+  slot := luaH_set(L, hvalue(o), L^.top - 2);
+  setobj2t(L, slot, L^.top - 1);
+  invalidateTMcache(hvalue(o));
+  luaC_barrierback(L, hvalue(o), L^.top-1);
+  L^.top := L^.top - 2;
+  lua_unlock(L);
 end;
 
 procedure lua_rawseti(const L: Plua_State; const idx: Integer; const n: lua_Integer);
+var
+  o: StkId;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  o := index2addr(L, idx);
+  api_check(L, ttistable(o), 'table expected');
+  luaH_setint(L, hvalue(o), n, L^.top - 1);
+  luaC_barrierback(L, hvalue(o), L^.top-1);
+  dec(L^.top);
+  lua_unlock(L);
 end;
 
 procedure lua_rawsetp(const L: Plua_State; const idx: Integer; const p: Pointer);
+var
+  o: StkId;
+  slot: PTValue;
+  k: TValue;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  o := index2addr(L, idx);
+  api_check(L, ttistable(o), 'table expected');
+  setpvalue(@k, p);
+  slot := luaH_set(L, hvalue(o), @k);
+  setobj2t(L, slot, L^.top - 1);
+  luaC_barrierback(L, hvalue(o), L^.top - 1);
+  dec(L^.top);
+  lua_unlock(L);
 end;
 
 function lua_setmetatable(const L: Plua_State; const objindex: Integer): Integer;
+var
+  obj: PTValue;
+  mt: PTable;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  obj := index2addr(L, objindex);
+  if (ttisnil(L^.top - 1)) then
+    mt := Nil
+  else
+  begin
+    api_check(L, ttistable(L^.top - 1), 'table expected');
+    mt := hvalue(L^.top - 1);
+  end;
+  case (ttnov(obj)) of
+    LUA_TTABLE: begin
+      hvalue(obj)^.metatable := mt;
+      if (mt <> nil) then
+      begin
+        luaC_objbarrier(L, gcvalue(obj), obj2gco(mt));
+        luaC_checkfinalizer(L, gcvalue(obj), mt);
+      end;
+    end;
+    LUA_TUSERDATA: begin
+      uvalue(obj)^.metatable := mt;
+      if (mt <> nil) then
+      begin
+        luaC_objbarrier(L, uvalue(obj), obj2gco(mt));
+        luaC_checkfinalizer(L, gcvalue(obj), mt);
+      end;
+    end;
+    else begin
+      G(L)^.mt[ttnov(obj)] := mt;
+    end;
+  end;
+  dec(L^.top);
+  lua_unlock(L);
+  Result := 1;
 end;
 
 procedure lua_setuservalue(const L: Plua_State; const idx: Integer);
+var
+  o: StkId;
 begin
-
+  lua_lock(L);
+  api_checknelems(L, 1);
+  o := index2addr(L, idx);
+  api_check(L, ttisfulluserdata(o), 'full userdata expected');
+  setuservalue(L, uvalue(o), L^.top - 1);
+  luaC_barrier(L, gcvalue(o), L^.top - 1);
+  dec(L^.top);
+  lua_unlock(L);
 end;
 
 procedure lua_callk(const L: Plua_State; const nargs, nresults: Integer;
