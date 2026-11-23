@@ -370,7 +370,7 @@ type
 *)
 //typedef void * (*lua_Alloc) (void *ud, void *ptr, size_t osize, size_t nsize);
 type
-  lua_Alloc = function (ud: Pointer; ptr: Pointer; osize: PtrUInt; nsize: PtrUInt): Pointer;
+  lua_Alloc = function (ud: Pointer; ptr: Pointer; osize: SizeUInt; nsize: SizeUInt): Pointer;
 
 (*
 ** RCS ident string
@@ -468,7 +468,7 @@ const
 *)
 //#if LUAI_BITSINT >= 32        /* }{ */
 type
-  lu_mem = type PtrUInt;
+  lu_mem = type SizeUInt;
   l_mem = type PtrInt;
 //#else  /* 16-bit ints */      /* }{ */
 //typedef unsigned long lu_mem;
@@ -481,6 +481,7 @@ type
   lu_byte = type Byte; // maybe shortint?
   // integer type that can be used in boolean expressions
   lu_int = type Integer;
+  Plu_int = ^lu_int;
 
 (* maximum value for size_t *)
 const
@@ -659,6 +660,7 @@ function check_exp(const c: Boolean; const e: lu_int): lu_int; overload;
 function check_exp(const c: Boolean; const e: Pointer): Pointer; overload;
 function check_exp(const c: Boolean; const e: Boolean): Boolean; overload;
 
+{ FP_Lua miscelaneous }
 operator :=(B: lu_byte): Boolean; inline;
 operator :=(I: lu_int): Boolean; inline;
 operator :=(B: Boolean): lu_int; inline;
@@ -669,30 +671,19 @@ uses
   SysUtils;
 
 function l_floor(const x: Single): Single;
-var
-  f: single;
 begin
-  // I was surprised there is no floor function in fpc that return float, i.e. don't convert to int
-  // TODO: I should probably write a proper floor code (translating C code for example)
-  f := Frac(x);
-  Result := x - f - ord(f<0);
+  Result := Int(x);
 end;
 
 function l_floor(const x: Double): Double;
-var
-  f: double;
 begin
-  f := Frac(x);
-  Result := x - f - ord(f<0);
+  Result := Int(x);
 end;
 
 {$ifdef SUPPORT_EXTENDED}
 function l_floor(const x: Extended): Extended;
-var
-  f: extended;
 begin
-  f := Frac(x);
-  Result := x - f - ord(f<0);
+  Result := Int(x);
 end;
 {$endif SUPPORT_EXTENDED}
 
@@ -885,5 +876,7 @@ begin
   Result := ord(B);
 end;
 
+initialization
+  ReturnNilIfGrowHeapFails := True;
 end.
 

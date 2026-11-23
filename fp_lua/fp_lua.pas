@@ -86,8 +86,8 @@ function lua_isuserdata(const L: Plua_State; const idx: Integer): lu_int;
 function lua_type(const L: Plua_State; const idx: Integer): lu_int;
 function lua_typename(const L: Plua_State; const tp: Integer): PChar;
 
-function lua_tonumberx(const L: Plua_State; const idx: Integer; const pisnum: PInteger): lua_Number;
-function lua_tointegerx(const L: Plua_State; const idx: Integer; const pisnum: PInteger): lua_Integer;
+function lua_tonumberx(const L: Plua_State; const idx: Integer; const pisnum: Plu_int): lua_Number;
+function lua_tointegerx(const L: Plua_State; const idx: Integer; const pisnum: Plu_int): lua_Integer;
 function lua_toboolean(const L: Plua_State; const idx: Integer): lu_int;
 function lua_tolstring(const L: Plua_State; const idx: Integer; const len: PSizeUInt): PChar;
 function lua_rawlen(const L: Plua_State; const idx: Integer): SizeUInt;
@@ -822,7 +822,7 @@ begin
 end;
 
 function lua_tonumberx(const L: Plua_State; const idx: Integer;
-  const pisnum: PInteger): lua_Number;
+  const pisnum: Plu_int): lua_Number;
 var
   o: PTValue;
   isnum: Integer;
@@ -836,7 +836,7 @@ begin
 end;
 
 function lua_tointegerx(const L: Plua_State; const idx: Integer;
-  const pisnum: PInteger): lua_Integer;
+  const pisnum: Plu_int): lua_Integer;
 var
   o: PTValue;
   isnum: Integer;

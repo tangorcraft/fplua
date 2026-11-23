@@ -64,14 +64,14 @@ type
   ** Type for functions that read/write blocks when loading/dumping Lua chunks
   *)
   //typedef const char * (*lua_Reader) (lua_State *L, void *ud, size_t *sz);
-  lua_Reader = function (L: Plua_State; ud: Pointer; sz: PPtrUInt): PChar;
+  lua_Reader = function (const L: Plua_State; const ud: Pointer; var sz: SizeUInt): PChar;
 
   //typedef int (*lua_Writer) (lua_State *L, const void *p, size_t sz, void *ud);
-  lua_Writer = function (L: Plua_State; p: Pointer; sz: PPtrUInt; ud: Pointer): Integer;
+  lua_Writer = function (const L: Plua_State; const p: Pointer; var sz: SizeUInt; const ud: Pointer): Integer;
 
   (* Functions to be called by the debugger in specific events *)
   //typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
-  lua_Hook = procedure (L: Plua_State; ar: Plua_Debug);
+  lua_Hook = procedure (const L: Plua_State; const ar: Plua_Debug);
 
   (*
   ** Common Header for all collectable objects (in macro form, to be
