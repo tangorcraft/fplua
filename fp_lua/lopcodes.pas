@@ -99,7 +99,7 @@ const
 
 (* code a constant index as a RK value *)
 //#define RKASK(x)        ((x) | BITRK)
-function RKASK(const x: Integer): Cardinal;
+function RKASK(const x: Integer): Integer;
 
 (*
 ** invalid register that fits in 8 bits
@@ -206,30 +206,30 @@ function MASK0(const n, p: Integer): Instruction;
 function GET_OPCODE(const i: Instruction): OpCode;
 procedure SET_OPCODE(var i: Instruction; const o: OpCode);
 
-function getarg(const i: Instruction; const pos, size: Integer): Cardinal;
-procedure setarg(var i: Instruction; const v: Cardinal; const pos, size: Integer);
+function getarg(const i: Instruction; const pos, size: Integer): Integer;
+procedure setarg(var i: Instruction; const v: Integer; const pos, size: Integer);
 
-function GETARG_A(const i: Instruction): Cardinal;
-procedure SETARG_A(var i: Instruction; const v: Cardinal);
+function GETARG_A(const i: Instruction): Integer;
+procedure SETARG_A(var i: Instruction; const v: Integer);
 
-function GETARG_B(const i: Instruction): Cardinal;
-procedure SETARG_B(var i: Instruction; const v: Cardinal);
+function GETARG_B(const i: Instruction): Integer;
+procedure SETARG_B(var i: Instruction; const v: Integer);
 
-function GETARG_C(const i: Instruction): Cardinal;
-procedure SETARG_C(var i: Instruction; const v: Cardinal);
+function GETARG_C(const i: Instruction): Integer;
+procedure SETARG_C(var i: Instruction; const v: Integer);
 
-function GETARG_Bx(const i: Instruction): Cardinal;
-procedure SETARG_Bx(var i: Instruction; const v: Cardinal);
+function GETARG_Bx(const i: Instruction): Integer;
+procedure SETARG_Bx(var i: Instruction; const v: Integer);
 
-function GETARG_Ax(const i: Instruction): Cardinal;
-procedure SETARG_Ax(var i: Instruction; const v: Cardinal);
+function GETARG_Ax(const i: Instruction): Integer;
+procedure SETARG_Ax(var i: Instruction; const v: Integer);
 
 function GETARG_sBx(const i: Instruction): Integer;
 procedure SETARG_sBx(var i: Instruction; const b: Integer);
 
-function CREATE_ABC(const o: OpCode; const a, b, c: Cardinal): Instruction;
-function CREATE_ABx(const o: OpCode; const a, bc: Cardinal): Instruction;
-function CREATE_Ax(const o: OpCode; const a: Cardinal): Instruction;
+function CREATE_ABC(const o: OpCode; const a, b, c: Integer): Instruction;
+function CREATE_ABx(const o: OpCode; const a, bc: Integer): Instruction;
+function CREATE_Ax(const o: OpCode; const a: Integer): Instruction;
 
 
 {*===========================================================================
@@ -350,7 +350,7 @@ begin
   Result := Integer(r) and not BITRK;
 end;
 
-function RKASK(const x: Integer): Cardinal;
+function RKASK(const x: Integer): Integer;
 begin
   Result := x or BITRK;
 end;
@@ -397,72 +397,72 @@ end;
 //#define getarg(i,pos,size)      (cast(int, ((i)>>pos) & MASK1(size,0)))
 //#define setarg(i,v,pos,size)    ((i) = (((i)&MASK0(size,pos)) | \
 //                ((cast(Instruction, v)<<pos)&MASK1(size,pos))))
-function getarg(const i: Instruction; const pos, size: Integer): Cardinal;
+function getarg(const i: Instruction; const pos, size: Integer): Integer;
 begin
-  Result := Cardinal((i shr pos) and MASK1(size, 0));
+  Result := (i shr pos) and MASK1(size, 0);
 end;
 
-procedure setarg(var i: Instruction; const v: Cardinal; const pos, size: Integer);
+procedure setarg(var i: Instruction; const v: Integer; const pos, size: Integer);
 begin
   i := (i and MASK0(size, pos)) or (Instruction(v shl pos) and MASK1(size, pos));
 end;
 
 //#define GETARG_A(i)     getarg(i, POS_A, SIZE_A)
 //#define SETARG_A(i,v)   setarg(i, v, POS_A, SIZE_A)
-function GETARG_A(const i: Instruction): Cardinal;
+function GETARG_A(const i: Instruction): Integer;
 begin
   Result := getarg(i, POS_A, SIZE_A);
 end;
 
-procedure SETARG_A(var i: Instruction; const v: Cardinal);
+procedure SETARG_A(var i: Instruction; const v: Integer);
 begin
   setarg(i, v, POS_A, SIZE_A);
 end;
 
 //#define GETARG_B(i)     getarg(i, POS_B, SIZE_B)
 //#define SETARG_B(i,v)   setarg(i, v, POS_B, SIZE_B)
-function GETARG_B(const i: Instruction): Cardinal;
+function GETARG_B(const i: Instruction): Integer;
 begin
   Result := getarg(i, POS_B, SIZE_B);
 end;
 
-procedure SETARG_B(var i: Instruction; const v: Cardinal);
+procedure SETARG_B(var i: Instruction; const v: Integer);
 begin
   setarg(i, v, POS_B, SIZE_B);
 end;
 
 //#define GETARG_C(i)     getarg(i, POS_C, SIZE_C)
 //#define SETARG_C(i,v)   setarg(i, v, POS_C, SIZE_C)
-function GETARG_C(const i: Instruction): Cardinal;
+function GETARG_C(const i: Instruction): Integer;
 begin
   Result := getarg(i, POS_C, SIZE_C);
 end;
 
-procedure SETARG_C(var i: Instruction; const v: Cardinal);
+procedure SETARG_C(var i: Instruction; const v: Integer);
 begin
   setarg(i, v, POS_C, SIZE_C);
 end;
 
 //#define GETARG_Bx(i)    getarg(i, POS_Bx, SIZE_Bx)
 //#define SETARG_Bx(i,v)  setarg(i, v, POS_Bx, SIZE_Bx)
-function GETARG_Bx(const i: Instruction): Cardinal;
+function GETARG_Bx(const i: Instruction): Integer;
 begin
   Result := getarg(i, POS_Bx, SIZE_Bx);
 end;
 
-procedure SETARG_Bx(var i: Instruction; const v: Cardinal);
+procedure SETARG_Bx(var i: Instruction; const v: Integer);
 begin
   setarg(i, v, POS_Bx, SIZE_Bx);
 end;
 
 //#define GETARG_Ax(i)    getarg(i, POS_Ax, SIZE_Ax)
 //#define SETARG_Ax(i,v)  setarg(i, v, POS_Ax, SIZE_Ax)
-function GETARG_Ax(const i: Instruction): Cardinal;
+function GETARG_Ax(const i: Instruction): Integer;
 begin
   Result := getarg(i, POS_Ax, SIZE_Ax);
 end;
 
-procedure SETARG_Ax(var i: Instruction; const v: Cardinal);
+procedure SETARG_Ax(var i: Instruction; const v: Integer);
 begin
   setarg(i, v, POS_Ax, SIZE_Ax);
 end;
@@ -492,7 +492,7 @@ end;
 #define CREATE_Ax(o,a)          ((cast(Instruction, o)<<POS_OP) \
                         | (cast(Instruction, a)<<POS_Ax))
 }
-function CREATE_ABC(const o: OpCode; const a, b, c: Cardinal): Instruction;
+function CREATE_ABC(const o: OpCode; const a, b, c: Integer): Instruction;
 begin
   Result := (ord(o) shl POS_OP)
          or (a shl POS_A)
@@ -500,14 +500,14 @@ begin
          or (c shl POS_C);
 end;
 
-function CREATE_ABx(const o: OpCode; const a, bc: Cardinal): Instruction;
+function CREATE_ABx(const o: OpCode; const a, bc: Integer): Instruction;
 begin
   Result := (ord(o) shl POS_OP)
          or (a shl POS_A)
          or (bc shl POS_Bx);
 end;
 
-function CREATE_Ax(const o: OpCode; const a: Cardinal): Instruction;
+function CREATE_Ax(const o: OpCode; const a: Integer): Instruction;
 begin
   Result := (ord(o) shl POS_OP)
          or (a shl POS_Ax);
