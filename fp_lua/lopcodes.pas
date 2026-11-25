@@ -86,11 +86,11 @@ const
 
 (* test whether value is a constant *)
 //#define ISK(x)          ((x) & BITRK)
-function ISK(const x: Cardinal): Boolean;
+function ISK(const x: Integer): Boolean;
 
 (* gets the index of the constant *)
 //#define INDEXK(r)       ((int)(r) & ~BITRK)
-function INDEXK(const r: Cardinal): Integer;
+function INDEXK(const r: Integer): Integer;
 
 //#if !defined(MAXINDEXRK)  /* (for debugging only) */
 const
@@ -340,14 +340,14 @@ const
 
 implementation
 
-function ISK(const x: Cardinal): Boolean;
+function ISK(const x: Integer): Boolean;
 begin
   Result := (x and BITRK) <> 0;
 end;
 
-function INDEXK(const r: Cardinal): Integer;
+function INDEXK(const r: Integer): Integer;
 begin
-  Result := Integer(r) and not BITRK;
+  Result := r and not BITRK;
 end;
 
 function RKASK(const x: Integer): Integer;

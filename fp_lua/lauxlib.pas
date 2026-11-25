@@ -1233,7 +1233,7 @@ begin
         lua_pushfstring(L, '%d:', [ar.currentline]);
       lua_pushliteral(L, ' in ');
       pushfuncname(L, @ar);
-      if (ar.istailcall <> #0) then
+      if (ar.istailcall <> 0) then
         lua_pushliteral(L, #13#9'(...tail calls...)');
       lua_concat(L, lua_gettop(L) - top);
     end;

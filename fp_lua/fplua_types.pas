@@ -114,6 +114,7 @@ type
 
   //typedef TValue *StkId;  (* index to stack elements *)
   StkId = type PTValue;
+  PStkId = ^StkId;
 
   (*
   ** Upvalues for Lua closures
@@ -378,7 +379,7 @@ type
     twups: Plua_State;  //* list of threads with open upvalues */
     errorJmp: Plua_longjmp;  //* current error recover point */
     base_ci: CallInfo;  //* CallInfo for first level (C calling Lua) */
-    // TODO hook: volatile lua_Hook;
+    hook: lua_Hook;
     errfunc: PtrInt;  //* current error handling function (stack index) */
     stacksize: Integer;
     basehookcount: Integer;
@@ -407,8 +408,8 @@ type
     lastlinedefined: Integer;  //* (S) */
     nups: Byte;                //* (u) number of upvalues */
     nparams: Byte;             //* (u) number of parameters */
-    isvararg: char;            //* (u) */ ? number? char?
-    istailcall: char;          //* (t) */ ? bytebool? char?
+    isvararg: lu_byte;         //* (u) */
+    istailcall: lu_byte;       //* (t) */
     short_src: array[0..LUA_IDSIZE-1] of char; //* (S) */
     //* private part */
     i_ci: PCallInfo;  //* active function */

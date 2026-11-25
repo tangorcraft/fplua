@@ -234,7 +234,8 @@ function lua_resume(const L, from: Plua_State; const narg: Integer): Integer;
 function lua_status(const L: Plua_State): Integer;
 function lua_isyieldable(const L: Plua_State): lu_int;
 
-function lua_yield(const L: Plua_State; const n: Integer): Integer;
+// lua_yield -> lua_yield0 because there is LUA_YIELD constant (pascal is case insensitive)
+function lua_yield0(const L: Plua_State; const n: Integer): Integer;
 
 (*
 ** garbage-collection function
@@ -447,10 +448,10 @@ function luai_numisnan(const a: lua_Number): Boolean;
 //LUA_API const char *(lua_setlocal) (lua_State *L, const lua_Debug *ar, int n);
 //LUA_API const char *(lua_getupvalue) (lua_State *L, int funcindex, int n);
 //LUA_API const char *(lua_setupvalue) (lua_State *L, int funcindex, int n);
-function lua_getstack(const L: Plua_State; const level: Integer; const ar: Plua_Debug): Integer;
-function lua_getinfo(const L: Plua_State; const what: PChar; const ar: Plua_Debug): Integer;
-function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
-function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_getstack(const L: Plua_State; level: Integer; const ar: Plua_Debug): Integer;
+function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean; inline;
+function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar; inline;
+function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar; inline;
 function lua_getupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
 function lua_setupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
 
@@ -464,7 +465,7 @@ procedure lua_upvaluejoin(const L: Plua_State; const fidx1, n1, fidx2, n2: Integ
 //LUA_API lua_Hook (lua_gethook) (lua_State *L);
 //LUA_API int (lua_gethookmask) (lua_State *L);
 //LUA_API int (lua_gethookcount) (lua_State *L);
-procedure lua_sethook(const L: Plua_State; const func: lua_Hook; const mask, count: Integer);
+procedure lua_sethook(const L: Plua_State; func: lua_Hook; mask, count: Integer);
 function lua_gethook(const L: Plua_State): lua_Hook;
 function lua_gethookmask(const L: Plua_State): Integer;
 function lua_gethookcount(const L: Plua_State): Integer;
@@ -1661,9 +1662,9 @@ begin
 end;
 
 //#define lua_yield(L,n)          lua_yieldk(L, (n), 0, NULL)
-function lua_yield(const L: Plua_State; const n: Integer): Integer;
+function lua_yield0(const L: Plua_State; const n: Integer): Integer;
 begin
-  lua_yieldk(L, n, 0, Nil);
+  Result := lua_yieldk(L, n, 0, Nil);
 end;
 
 function lua_gc(const L: Plua_State; const what: Integer; data: Integer): Integer;
@@ -2118,24 +2119,42 @@ begin
   Result := not (a = a);
 end;
 
-function lua_getstack(const L: Plua_State; const level: Integer; const ar: Plua_Debug): Integer;
+function lua_getstack(const L: Plua_State; level: Integer; const ar: Plua_Debug): Integer;
+var
+  status: Integer;
+  ci: PCallInfo;
 begin
-
+  if (level < 0) then Exit(0);  //* invalid (negative) level */
+  lua_lock(L);
+  ci := L^.ci;
+  while (level > 0) and (ci <> @L^.base_ci) do
+  begin
+    dec(level);
+    ci := ci^.previous;
+  end;
+  if (level = 0) and (ci <> @L^.base_ci) then //* level found? */
+  begin
+    status := 1;
+    ar^.i_ci := ci;
+  end
+  else status := 0;  //* no such level */
+  lua_unlock(L);
+  Result := status;
 end;
 
-function lua_getinfo(const L: Plua_State; const what: PChar; const ar: Plua_Debug): Integer;
+function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
 begin
-
+  Result := lua_getinfo_(L, what, ar);
 end;
 
 function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 begin
-
+  Result := lua_getlocal_(L, ar, n);
 end;
 
 function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 begin
-
+  Result := lua_setlocal_(L, ar, n);
 end;
 
 //static const char *aux_upvalue (StkId fi, int n, TValue **val,
@@ -2271,24 +2290,44 @@ begin
   luaC_upvalbarrier(L, up1^);
 end;
 
-procedure lua_sethook(const L: Plua_State; const func: lua_Hook; const mask, count: Integer);
+(*
+** This function can be called asynchronously (e.g. during a signal).
+** Fields 'oldpc', 'basehookcount', and 'hookcount' (set by
+** 'resethookcount') are for debug only, and it is no problem if they
+** get arbitrary values (causes at most one wrong hook call). 'hookmask'
+** is an atomic value. We assume that pointers are atomic too (e.g., gcc
+** ensures that for all platforms where it runs). Moreover, 'hook' is
+** always checked before being called (see 'luaD_hook').
+*)
+procedure lua_sethook(const L: Plua_State; func: lua_Hook; mask, count: Integer);
 begin
-
+  if (func = Nil) or (mask = 0) then  //* turn off hooks? */
+  begin
+    mask := 0;
+    func := Nil;
+  end;
+  if (isLua(L^.ci)) then
+    L^.oldpc := L^.ci^.u.l_savedpc;
+  // no 'volatile' in pascal, so using interlocked to set variable
+  InterlockedExchange(Pointer(L^.hook), Pointer(func));
+  L^.basehookcount := count;
+  resethookcount(L);
+  L^.hookmask := cast_byte(mask);
 end;
 
 function lua_gethook(const L: Plua_State): lua_Hook;
 begin
-
+  InterlockedExchange(Pointer(Result), Pointer(L^.hook));
 end;
 
 function lua_gethookmask(const L: Plua_State): Integer;
 begin
-
+  Result := L^.hookmask;
 end;
 
 function lua_gethookcount(const L: Plua_State): Integer;
 begin
-
+  Result := L^.basehookcount;
 end;
 
 (*
