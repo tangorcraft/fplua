@@ -505,7 +505,7 @@ const
 ** this is for hashing only; there is no problem if the integer
 ** cannot hold the whole pointer value
 *)
-function point2uint(const p: Pointer): Cardinal; inline;
+function point2uint(const p: Pointer): Cardinal;
 
 (* type to ensure maximum alignment *)
 //#if defined(LUAI_USER_ALIGNMENT_T)
@@ -538,14 +538,14 @@ type
 
 (* cast a signed lua_Integer to lua_Unsigned *)
 // this one probably can be a type too
-function l_castS2U(const i: lua_Integer): lua_Unsigned; inline;
+function l_castS2U(const i: lua_Integer): lua_Unsigned;
 
 (*
 ** cast a lua_Unsigned to a signed lua_Integer; this cast is
 ** not strict ISO C, but two-complement architectures should
 ** work fine.
 *)
-function l_castU2S(const i: lua_Unsigned): lua_Integer; inline;
+function l_castU2S(const i: lua_Unsigned): lua_Integer;
 
 (*
 ** maximum depth for nested C calls and syntactical nested non-terminals
@@ -650,8 +650,8 @@ type
 var
   fplua_assert: fplua_assert_fn;
 {$endif}
-procedure lua_assert(const c: Boolean); inline;
-procedure lua_longassert(const c: Boolean); inline; // can probably use normal lua_assert
+procedure lua_assert(const c: Boolean);
+procedure lua_longassert(const c: Boolean); // can probably use normal lua_assert
 // this function just return e, need overloading for different types
 function check_exp(const c: Boolean; const e: lu_byte): lu_byte; overload;
 function check_exp(const c: Boolean; const e: lua_Number): lua_Number; overload;

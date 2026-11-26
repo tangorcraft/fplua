@@ -30,9 +30,9 @@ function luaM_reallocv(const L: Plua_State; const b: Pointer; const o_n, n: Inte
 *)
 function luaM_reallocvchar(const L: Plua_State; const b: Pointer; const o_n, n: Integer): PChar;
 
-procedure luaM_freemem(const L: Plua_State; var b: Pointer; const s: SizeUInt);
-procedure luaM_free(const L: Plua_State; var b: Pointer; const sizeof_b: SizeUInt);
-procedure luaM_freearray(const L: Plua_State; var b: Pointer; const sizeof_b: SizeUInt; const n: Integer);
+procedure luaM_freemem(const L: Plua_State; const b: Pointer; const s: SizeUInt);
+procedure luaM_free(const L: Plua_State; const b: Pointer; const sizeof_b: SizeUInt);
+procedure luaM_freearray(const L: Plua_State; const b: Pointer; const sizeof_b: SizeUInt; const n: Integer);
 
 // cannot pass type as parameter, since it is not a macro in pascal
 // so sizeof(t) should be done at caller
@@ -62,19 +62,19 @@ LUAI_FUNC void *luaM_growaux_ (lua_State *L, void *block, int *size,
                                size_t size_elem, int limit,
                                const char *what);
 
-function luaM_realloc_(const L: Plua_State; var block: Pointer; const oldsize, size: SizeUInt): Pointer;
-function luaM_growaux_(const L: Plua_State; var block: Pointer; var size: Integer;
+function luaM_realloc_(const L: Plua_State; const block: Pointer; const oldsize, size: SizeUInt): Pointer;
+function luaM_growaux_(const L: Plua_State; const block: Pointer; var size: Integer;
   const size_elem: SizeUInt; const limit: Integer; const what: PChar): Pointer;
 }
 implementation
 
-function luaM_realloc_(const L: Plua_State; var block: Pointer; const oldsize,
+function luaM_realloc_(const L: Plua_State; const block: Pointer; const oldsize,
   size: SizeUInt): Pointer;
 begin
 
 end;
 
-function luaM_growaux_(const L: Plua_State; var block: Pointer; var size: Integer;
+function luaM_growaux_(const L: Plua_State; const block: Pointer; var size: Integer;
   const size_elem: SizeUInt; const limit: Integer; const what: PChar): Pointer;
 begin
 
@@ -108,19 +108,19 @@ begin
 end;
 
 //#define luaM_freemem(L, b, s)   luaM_realloc_(L, (b), (s), 0)
-procedure luaM_freemem(const L: Plua_State; var b: Pointer; const s: SizeUInt);
+procedure luaM_freemem(const L: Plua_State; const b: Pointer; const s: SizeUInt);
 begin
   luaM_realloc_(L, b, s, 0);
 end;
 
 //#define luaM_free(L, b)         luaM_realloc_(L, (b), sizeof(*(b)), 0)
-procedure luaM_free(const L: Plua_State; var b: Pointer; const sizeof_b: SizeUInt);
+procedure luaM_free(const L: Plua_State; const b: Pointer; const sizeof_b: SizeUInt);
 begin
   luaM_realloc_(L, b, sizeof_b, 0);
 end;
 
 //#define luaM_freearray(L, b, n)   luaM_realloc_(L, (b), (n)*sizeof(*(b)), 0)
-procedure luaM_freearray(const L: Plua_State; var b: Pointer; const sizeof_b: SizeUInt;
+procedure luaM_freearray(const L: Plua_State; const b: Pointer; const sizeof_b: SizeUInt;
   const n: Integer);
 begin
   luaM_realloc_(L, b, n*sizeof_b, 0);

@@ -449,9 +449,9 @@ function luai_numisnan(const a: lua_Number): Boolean;
 //LUA_API const char *(lua_getupvalue) (lua_State *L, int funcindex, int n);
 //LUA_API const char *(lua_setupvalue) (lua_State *L, int funcindex, int n);
 function lua_getstack(const L: Plua_State; level: Integer; const ar: Plua_Debug): Integer;
-function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean; inline;
-function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar; inline;
-function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar; inline;
+function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
+function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 function lua_getupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
 function lua_setupvalue(const L: Plua_State; const funcindex, n: Integer): PChar;
 

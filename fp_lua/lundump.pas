@@ -18,7 +18,7 @@ const
   LUAC_NUM      = cast_num(370.5);
 
 //#define MYINT(s)  (s[0]-'0')
-function MYINT(const s: PChar): lu_byte;
+function MYINT(const s: PChar): lu_int;
 
 const
   LUAC_VERSION  = (ord(LUA_VERSION_MAJOR) - ord('0'))*16 + (ord(LUA_VERSION_MINOR) - ord('0'));
@@ -37,7 +37,13 @@ function luaU_dump(const L: Plua_State; const f: PProto; const w: lua_Writer;
 
 implementation
 
-function MYINT(const s: PChar): lu_byte;
+uses
+  fp_lua;
+
+{$i ldump.inc}
+{$i lundump.inc}
+
+function MYINT(const s: PChar): lu_int;
 begin
   Result := ord(s[0]) - ord('0');
 end;
