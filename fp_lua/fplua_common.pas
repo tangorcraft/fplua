@@ -257,7 +257,7 @@ function fpl_sprintf(var s: PChar; const sz: SizeUInt; const f: String; const ar
    (n) < -(LUA_NUMBER)(LUA_MININTEGER) && \
       (*(p) = (LUA_INTEGER)(n), 1))
 }
-function lua_numbertointeger(const n: FPLUA_NUMBER; out p: FPLUA_INTEGER): Boolean; inline;
+function lua_numbertointeger(const n: FPLUA_NUMBER; out p: FPLUA_INTEGER): Boolean;
 
 (* }================================================================== *)
 

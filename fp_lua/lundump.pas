@@ -38,7 +38,8 @@ function luaU_dump(const L: Plua_State; const f: PProto; const w: lua_Writer;
 implementation
 
 uses
-  fp_lua;
+  fp_lua,
+  lobject, lstate;
 
 {$i ldump.inc}
 {$i lundump.inc}
@@ -55,8 +56,18 @@ end;
 
 function luaU_dump(const L: Plua_State; const f: PProto; const w: lua_Writer;
   const data: Pointer; const strip: Integer): Integer;
+var
+  D: DumpState;
 begin
-
+  D.L := L;
+  D.writer := w;
+  D.data := data;
+  D.strip := strip;
+  D.status := 0;
+  DumpHeader(D);
+  DumpByte(f^.sizeupvalues, D);
+  DumpFunction(f, Nil, D);
+  Result := D.status;
 end;
 
 end.

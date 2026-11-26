@@ -67,7 +67,7 @@ type
   lua_Reader = function (const L: Plua_State; const ud: Pointer; var sz: SizeUInt): PChar;
 
   //typedef int (*lua_Writer) (lua_State *L, const void *p, size_t sz, void *ud);
-  lua_Writer = function (const L: Plua_State; const p: Pointer; var sz: SizeUInt; const ud: Pointer): Integer;
+  lua_Writer = function (const L: Plua_State; const p: Pointer; const sz: SizeUInt; const ud: Pointer): Integer;
 
   (* Functions to be called by the debugger in specific events *)
   //typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
@@ -431,7 +431,7 @@ type
 var
   fplua_apicheck: fplua_apicheck_fn;
 {$endif}
-procedure api_check(const L: Plua_State; const e: Boolean; const msg: PChar); inline;
+procedure api_check(const L: Plua_State; const e: Boolean; const msg: PChar);
 
 function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction; overload;
 
@@ -460,10 +460,10 @@ procedure condmovestack(const L: Plua_State);
 // a "common" version without pre/pos
 procedure condchangemem(const L: Plua_State);
 
-function CClosure_upvalue(const v: PCClosure): PTValue; inline;
-function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue; inline;
-function LClosure_upvals(const v: PLClosure): PPUpVal; inline;
-function LClosure_upvalsN(const v: PLClosure; const n: Integer): PUpVal; inline;
+function CClosure_upvalue(const v: PCClosure): PTValue;
+function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue;
+function LClosure_upvals(const v: PLClosure): PPUpVal;
+function LClosure_upvalsN(const v: PLClosure; const n: Integer): PUpVal;
 
 implementation
 
