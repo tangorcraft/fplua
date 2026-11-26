@@ -1113,7 +1113,7 @@ begin
 end;
 
 //static int panic (lua_State *L)
-function panic(const L: Plua_State): Integer; cdecl;
+function panic(const L: Plua_State): Integer;
 begin
   lua_writestringerror('PANIC: unprotected error in call to Lua API (%s)'#13,
                         [lua_tostring(L, -1)]);
@@ -1395,7 +1395,7 @@ end;
 
 
 //static int boxgc (lua_State *L)
-function boxgc(const L: Plua_State): Integer; cdecl;
+function boxgc(const L: Plua_State): Integer;
 begin
   resizebox(L, 1, 0);
   Result := 0;

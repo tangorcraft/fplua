@@ -15,12 +15,12 @@ uses
 //LUAI_FUNC LClosure *luaY_parser (lua_State *L, ZIO *z, Mbuffer *buff,
 //                                 Dyndata *dyd, const char *name, int firstchar);
 function luaY_parser(const L: Plua_State; const z: PZIO; const buff: PMbuffer;
-  const dyd: PDyndata; const name: PChar; const firstchar: Integer): LClosure;
+  const dyd: PDyndata; const name: PChar; const firstchar: Integer): PLClosure;
 
 implementation
 
 function luaY_parser(const L: Plua_State; const z: PZIO; const buff: PMbuffer;
-  const dyd: PDyndata; const name: PChar; const firstchar: Integer): LClosure;
+  const dyd: PDyndata; const name: PChar; const firstchar: Integer): PLClosure;
 begin
 
 end;

@@ -33,7 +33,8 @@ procedure luaG_tointerror(const L: Plua_State; p1, p2: PTValue);
 //                                                 const TValue *p2);
 procedure luaG_ordererror(const L: Plua_State; const p1, p2: PTValue);
 //LUAI_FUNC l_noret luaG_runerror (lua_State *L, const char *fmt, ...);
-procedure luaG_runerror(const L: Plua_State; const fmt: PChar; const args: array of const);
+procedure luaG_runerror(const L: Plua_State; const fmt: PChar; const args: array of const); overload;
+procedure luaG_runerror(const L: Plua_State; const fmt: PChar); overload;
 //LUAI_FUNC const char *luaG_addinfo (lua_State *L, const char *msg,
 //                                                  TString *src, int line);
 function luaG_addinfo(const L: Plua_State; const msg: PChar; const src: PTString;
@@ -45,9 +46,9 @@ procedure luaG_traceexec(const L: Plua_State);
 
 // functions declared in lua.h but implemented in ldebug.c
 // these are called from fp_lua.pas
-function lua_getinfo_(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
-function lua_getlocal_(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
-function lua_setlocal_(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
+function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 
 implementation
 
@@ -681,6 +682,11 @@ begin
   luaG_errormsg(L);
 end;
 
+procedure luaG_runerror(const L: Plua_State; const fmt: PChar);
+begin
+  luaG_runerror(L, fmt, []);
+end;
+
 function luaG_addinfo(const L: Plua_State; const msg: PChar; const src: PTString;
   const line: Integer): PChar;
 var
@@ -756,7 +762,7 @@ begin
   end;
 end;
 
-function lua_getinfo_(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
+function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
 var
   //status: Integer; // use Result
   cl: PClosure;
@@ -796,7 +802,7 @@ begin
   //return status;
 end;
 
-function lua_getlocal_(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 var
   name: PChar;
   pos: StkId;
@@ -825,7 +831,7 @@ begin
   Result := name;
 end;
 
-function lua_setlocal_(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
+function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 var
   name: PChar;
   pos: StkId;

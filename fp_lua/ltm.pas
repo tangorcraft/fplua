@@ -38,7 +38,7 @@ LUAI_FUNC int luaT_callorderTM (lua_State *L, const TValue *p1,
 function luaT_objtypename(const L: Plua_State; const o: PTValue): PChar;
 
 function luaT_gettm(const events: PTable; const event: TMS; const ename: PTString): PTValue;
-function luaT_gettmbyobj(const L: Plua_State; const o: PTValue; const event: TMS): PChar;
+function luaT_gettmbyobj(const L: Plua_State; const o: PTValue; const event: TMS): PTValue;
 
 procedure luaT_init(const L: Plua_State);
 
@@ -93,7 +93,7 @@ begin
 
 end;
 
-function luaT_gettmbyobj(const L: Plua_State; const o: PTValue; const event: TMS): PChar;
+function luaT_gettmbyobj(const L: Plua_State; const o: PTValue; const event: TMS): PTValue;
 begin
 
 end;

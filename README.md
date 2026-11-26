@@ -9,7 +9,21 @@ Lua is free software distributed under the terms of the MIT license, Copyright Â
 
 ## Work In Progress
 
+* Objectives:
+  * While making code for Free Pascal, do not use any features not available in Delphi:
+    * Macros;
+    * SetJmp/LongJmp;
+  * Make code compile with Delphi too;
+  * Make LuaVM classes and maybe LCL/VCL components;
+  * (Big maybe) Upgrade to latest Lua versions;
+
 * Translating code
+
+## Differnces
+
+While I try to write code as close to C implementation as possible, there is
+a lof of differences between C and Pascal, here some important ones:
+* `lua_yield` function (macros over 'lua_yieldk') renamed to `lua_yield0` to differentiate from `LUA_YIELD` constant;
 
 # FP-Lua License
 

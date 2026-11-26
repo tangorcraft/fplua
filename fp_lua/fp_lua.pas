@@ -1608,7 +1608,7 @@ begin
   if (chunkname = nil) then
     chunkname := '?';
   luaZ_init(L, z, reader, data);
-  Result := luaD_protectedparser(L, z, chunkname, mode);
+  Result := luaD_protectedparser(L, @z, chunkname, mode);
   if (Result = LUA_OK) then
   begin  //* no errors? */
     f := clLvalue(L^.top - 1);  //* get newly created function */
@@ -1643,12 +1643,12 @@ end;
 function lua_yieldk(const L: Plua_State; const nresults: Integer; const ctx: lua_KContext;
   const k: lua_KFunction): Integer;
 begin
-
+  Result := ldo.lua_yieldk(L, nresults, ctx, k);
 end;
 
 function lua_resume(const L, from: Plua_State; const narg: Integer): Integer;
 begin
-
+  Result := ldo.lua_resume(L, from, narg);
 end;
 
 function lua_status(const L: Plua_State): Integer;
@@ -1658,13 +1658,13 @@ end;
 
 function lua_isyieldable(const L: Plua_State): lu_int;
 begin
-
+  Result := ldo.lua_isyieldable(L);
 end;
 
 //#define lua_yield(L,n)          lua_yieldk(L, (n), 0, NULL)
 function lua_yield0(const L: Plua_State; const n: Integer): Integer;
 begin
-  Result := lua_yieldk(L, n, 0, Nil);
+  Result := ldo.lua_yieldk(L, n, 0, Nil);
 end;
 
 function lua_gc(const L: Plua_State; const what: Integer; data: Integer): Integer;
@@ -2144,17 +2144,17 @@ end;
 
 function lua_getinfo(const L: Plua_State; what: PChar; const ar: Plua_Debug): Boolean;
 begin
-  Result := lua_getinfo_(L, what, ar);
+  Result := ldebug.lua_getinfo(L, what, ar);
 end;
 
 function lua_getlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 begin
-  Result := lua_getlocal_(L, ar, n);
+  Result := ldebug.lua_getlocal(L, ar, n);
 end;
 
 function lua_setlocal(const L: Plua_State; const ar: Plua_Debug; const n: Integer): PChar;
 begin
-  Result := lua_setlocal_(L, ar, n);
+  Result := ldebug.lua_setlocal(L, ar, n);
 end;
 
 //static const char *aux_upvalue (StkId fi, int n, TValue **val,

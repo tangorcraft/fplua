@@ -128,10 +128,10 @@ LUAI_FUNC void luaE_freeCI (lua_State *L);
 LUAI_FUNC void luaE_shrinkCI (lua_State *L);
 }
 procedure luaE_setdebt(const g: Pglobal_State; const debt: l_mem);
-procedure luaE_freethread(const L, L1: lua_State);
-function luaE_extendCI(const L: lua_State): PCallInfo;
-procedure luaE_freeCI(const L: lua_State);
-procedure luaE_shrinkCI(const L: lua_State);
+procedure luaE_freethread(const L, L1: Plua_State);
+function luaE_extendCI(const L: Plua_State): PCallInfo;
+procedure luaE_freeCI(const L: Plua_State);
+procedure luaE_shrinkCI(const L: Plua_State);
 
 implementation
 
@@ -225,22 +225,22 @@ begin
 
 end;
 
-procedure luaE_freethread(const L, L1: lua_State);
+procedure luaE_freethread(const L, L1: Plua_State);
 begin
 
 end;
 
-function luaE_extendCI(const L: lua_State): PCallInfo;
+function luaE_extendCI(const L: Plua_State): PCallInfo;
 begin
 
 end;
 
-procedure luaE_freeCI(const L: lua_State);
+procedure luaE_freeCI(const L: Plua_State);
 begin
 
 end;
 
-procedure luaE_shrinkCI(const L: lua_State);
+procedure luaE_shrinkCI(const L: Plua_State);
 begin
 
 end;

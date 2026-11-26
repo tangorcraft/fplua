@@ -52,7 +52,7 @@ type
   ** Type for C functions registered with Lua
   *)
   //typedef int (*lua_CFunction) (lua_State *L);
-  lua_CFunction = function (const L: Plua_State): Integer; cdecl;
+  lua_CFunction = function (const L: Plua_State): Integer;
 
   (*
   ** Type for continuation functions
@@ -390,10 +390,12 @@ type
     allowhook: lu_byte;
   end;
 
-  // TODO
-  //struct lua_longjmp;  /* defined in ldo.c */
+  //struct lua_longjmp;
+  (* chain list of long jump buffers *)
   lua_longjmp = record
-    TODO: Pointer;
+    previous: Plua_longjmp;
+    //luai_jmpbuf b; // always using exceptions, no need for dummy variable
+    status: Integer; //volatile int //* error code */
   end;
 
   (* activation record *)
@@ -444,10 +446,9 @@ function check_exp(const c: Boolean; const e: lua_CFunction): lua_CFunction; ove
 //#define condmovestack(L,pre,pos)  \
 //        { int sz_ = (L)->stacksize; pre; luaD_reallocstack((L), sz_); pos; }
 //#endif
-{$ifdef HARDSTACKTESTS}
+
 // a "common" version without pre/pos
 procedure condmovestack(const L: Plua_State);
-{$endif}
 
 //#if !defined(HARDMEMTESTS)
 //#define condchangemem(L,pre,pos)        ((void)0)
@@ -455,10 +456,9 @@ procedure condmovestack(const L: Plua_State);
 //#define condchangemem(L,pre,pos)  \
 //        { if (G(L)->gcrunning) { pre; luaC_fullgc(L, 0); pos; } }
 //#endif
-{$ifdef HARDMEMTESTS}
+
 // a "common" version without pre/pos
 procedure condchangemem(const L: Plua_State);
-{$endif}
 
 function CClosure_upvalue(const v: PCClosure): PTValue; inline;
 function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue; inline;
@@ -501,19 +501,25 @@ end;
 //#define condmovestack(L,pre,pos)  \
 //        { int sz_ = (L)->stacksize; pre; luaD_reallocstack((L), sz_); pos; }
 procedure condmovestack(const L: Plua_State);
+{$ifdef HARDSTACKTESTS}
 var
   sz_: Integer;
+{$endif}
 begin
+  {$ifdef HARDSTACKTESTS}
   sz_ := L^.stacksize;
   luaD_reallocstack(L, sz_);
+  {$endif}
 end;
 
 //#define condchangemem(L,pre,pos)  \
 //        { if (G(L)->gcrunning) { pre; luaC_fullgc(L, 0); pos; } }
 procedure condchangemem(const L: Plua_State);
 begin
+  {$ifdef HARDMEMTESTS}
   if L^.l_G^.gcrunning then
     luaC_fullgc(L, 0);
+  {$endif}
 end;
 
 function CClosure_upvalue(const v: PCClosure): PTValue;
