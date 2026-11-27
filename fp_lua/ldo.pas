@@ -516,7 +516,7 @@ begin
     cl := luaY_parser(L, p^.z, @p^.buff, @p^.dyd, p^.name, c);
   end;
   lua_assert(cl^.header.nupvalues = cl^.p^.sizeupvalues);
-  luaF_initupvals(L, cl^);
+  luaF_initupvals(L, cl);
 end;
 
 
