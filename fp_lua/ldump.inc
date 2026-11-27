@@ -6,8 +6,6 @@ type
     strip: Boolean;
     status: Integer;
   end;
-  PDumpState = ^DumpState;
-
 
 
 //static void DumpBlock (const void *b, size_t size, DumpState *D)
@@ -38,33 +36,53 @@ begin
 end;
 
 //#define DumpVar(x,D) DumpVector(&x,1,D)
+procedure DumpVar(const x: lu_byte; var D: DumpState); overload;
+begin
+  DumpVector(@x, 1, sizeof(x), D);
+end;
+procedure DumpVar(const x: Integer; var D: DumpState); overload;
+begin
+  DumpVector(@x, 1, sizeof(x), D);
+end;
+procedure DumpVar(const x: lua_Number; var D: DumpState); overload;
+begin
+  DumpVector(@x, 1, sizeof(x), D);
+end;
+procedure DumpVar(const x: lua_Integer; var D: DumpState); overload;
+begin
+  DumpVector(@x, 1, sizeof(x), D);
+end;
+procedure DumpVar(const x: SizeUInt; var D: DumpState); overload;
+begin
+  DumpVector(@x, 1, sizeof(x), D);
+end;
 
 
 //static void DumpByte (int y, DumpState *D)
 procedure DumpByte(const x: lu_byte; var D: DumpState);
 begin
-  DumpVector(@x, 1, sizeof(lu_byte), D);
+  DumpVar(x, D);
 end;
 
 
 //static void DumpInt (int x, DumpState *D)
 procedure DumpInt(const x: Integer; var D: DumpState);
 begin
-  DumpVector(@x, 1, sizeof(Integer), D);
+  DumpVar(x, D);
 end;
 
 
 //static void DumpNumber (lua_Number x, DumpState *D)
 procedure DumpNumber(const x: lua_Number; var D: DumpState);
 begin
-  DumpVector(@x, 1, sizeof(lua_Number), D);
+  DumpVar(x, D);
 end;
 
 
 //static void DumpInteger (lua_Integer x, DumpState *D)
 procedure DumpInteger(const x: lua_Integer; var D: DumpState);
 begin
-  DumpVector(@x, 1, sizeof(lua_Integer), D);
+  DumpVar(x, D);
 end;
 
 
@@ -85,7 +103,7 @@ begin
     else
     begin
       DumpByte($FF, D);
-      DumpVector(@size, 1, sizeof(SizeUInt), D);
+      DumpVar(size, D);
     end;
     DumpVector(str, size - 1, SizeOf(Char), D);  //* no need to save '\0' */
   end;

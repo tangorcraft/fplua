@@ -15,6 +15,7 @@ const
   EOF = -1;
 
 procedure memcpy(const dest, source: Pointer; const count: SizeUInt); inline;
+function memcmp(const p1, p2: Pointer; const count: SizeInt): boolean; inline;
 function strerror(const err: integer): PChar;
 function errno: Integer;
 
@@ -50,6 +51,11 @@ uses
 procedure memcpy(const dest, source: Pointer; const count: SizeUInt);
 begin
   Move(source^, dest^, count);
+end;
+
+function memcmp(const p1, p2: Pointer; const count: SizeInt): boolean;
+begin
+  Result := CompareByte(p1^, p2^, count) = 0;
 end;
 
 {$ifdef FPC_HAS_FEATURE_THREADING}

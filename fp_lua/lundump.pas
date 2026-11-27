@@ -38,8 +38,8 @@ function luaU_dump(const L: Plua_State; const f: PProto; const w: lua_Writer;
 implementation
 
 uses
-  fp_lua,
-  lobject, lstate;
+  fp_lua, fplua_sysutils,
+  ldo, lfunc, lgc, lmem, lobject, lstring, lstate;
 
 {$i ldump.inc}
 {$i lundump.inc}
@@ -49,9 +49,35 @@ begin
   Result := ord(s[0]) - ord('0');
 end;
 
+(*
+** load precompiled chunk
+*)
 function luaU_undump(const L: Plua_State; const z: PZio; const name: PChar): PLClosure;
+var
+  S: LoadState;
+  cl: PLClosure;
 begin
-
+  if (name^ = '@') or (name^ = '=') then
+    S.name := name + 1
+  else if (name^ = LUA_SIGNATURE[0]) then
+    S.name := 'binary string'
+  else
+    S.name := name;
+  S.L := L;
+  S.Z := Z;
+  checkHeader(S);
+  cl := luaF_newLclosure(L, LoadByte(S));
+  setclLvalue(L, L^.top, cl);
+  luaD_inctop(L);
+  cl^.p := luaF_newproto(L);
+  luaC_objbarrier(L, obj2gco(cl), obj2gco(cl^.p));
+  LoadFunction(S, cl^.p, Nil);
+  lua_assert(cl^.header.nupvalues = cl^.p^.sizeupvalues);
+  // luai_verifycode is defined as '/* empty */' in lundump.c
+  // What is supposed to be 'buff' here?
+  //luai_verifycode(L, buff, cl^.p);
+  // Implement it in lundump.inc if needed
+  Result := cl;
 end;
 
 function luaU_dump(const L: Plua_State; const f: PProto; const w: lua_Writer;
