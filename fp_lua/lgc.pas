@@ -115,7 +115,8 @@ procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 implementation
 
 uses
-  lobject, lfunc;
+  fp_lua,
+  ldebug, ldo, lfunc, lmem, lobject, lstate, lstring, ltable, ltm;
 
 (*
 ** some useful bit tricks
@@ -221,6 +222,119 @@ begin
   Result := g^.currentwhite and WHITEBITS;
 end;
 
+
+(*
+** internal state for collector while inside the atomic phase. The
+** collector should never be in this state while running regular code.
+*)
+const
+  GCSinsideatomic = (GCSpause + 1);
+
+(*
+** cost of sweeping one element (the size of a small object divided
+** by some adjust for the sweep speed)
+*)
+const
+  GCSWEEPCOST   = ((sizeof(TString) + 4) div 4);
+
+(* maximum number of elements to sweep in each single step *)
+const
+  GCSWEEPMAX    = (cast_int((GCSTEPSIZE div GCSWEEPCOST) div 4));
+
+(* cost of calling one finalizer *)
+const
+  GCFINALIZECOST = GCSWEEPCOST;
+
+
+(*
+** macro to adjust 'stepmul': 'stepmul' is actually used like
+** 'stepmul / STEPMULADJ' (value chosen by tests)
+*)
+const
+  STEPMULADJ = 200;
+
+
+(*
+** macro to adjust 'pause': 'pause' is actually used like
+** 'pause / PAUSEADJ' (value chosen by tests)
+*)
+const
+  PAUSEADJ = 100;
+
+
+(*
+** 'makewhite' erases all color bits then sets only the current white
+** bit
+*)
+//#define maskcolors      (~(bitmask(BLACKBIT) | WHITEBITS))
+const
+  maskcolors: lu_byte = lu_byte(not (bitmask_BLACKBIT or WHITEBITS));
+//#define makewhite(g,x)  \
+// (x->marked = cast_byte((x->marked & maskcolors) | luaC_white(g)))
+procedure makewhite(const g: Pglobal_State; const x: PGCObject);
+begin
+  x^.marked := (x^.marked and maskcolors) or luaC_white(g);
+end;
+
+//#define white2gray(x)   resetbits(x->marked, WHITEBITS)
+procedure white2gray(const x: PGCObject);
+begin
+  x^.marked := x^.marked and not WHITEBITS;
+end;
+
+//#define black2gray(x)   resetbit(x->marked, BLACKBIT)
+procedure black2gray(const x: PGCObject);
+begin
+  x^.marked := x^.marked and not bitmask_BLACKBIT;
+end;
+
+//#define valiswhite(x)   (iscollectable(x) && iswhite(gcvalue(x)))
+function valiswhite(const x: PTValue): Boolean;
+begin
+  Result := (iscollectable(x) and iswhite(gcvalue(x)));
+end;
+
+//#define checkdeadkey(n) lua_assert(!ttisdeadkey(gkey(n)) || ttisnil(gval(n)))
+procedure checkdeadkey(const n: PNode);
+begin
+  lua_assert(not ttisdeadkey(gkey(n)) or ttisnil(gval(n)));
+end;
+
+//#define checkconsistency(obj)  \
+//  lua_longassert(!iscollectable(obj) || righttt(obj))
+procedure checkconsistency(const obj: PTValue);
+begin
+  lua_longassert(not iscollectable(obj) or righttt(obj));
+end;
+
+//static void reallymarkobject (global_State *g, GCObject *o);
+procedure reallymarkobject(const g: Pglobal_State; o: PGCObject); forward;
+
+//#define markvalue(g,o) { checkconsistency(o); \
+//  if (valiswhite(o)) reallymarkobject(g,gcvalue(o)); }
+procedure markvalue(const g: Pglobal_State; const o: PTValue);
+begin
+  checkconsistency(o);
+  if (valiswhite(o)) then reallymarkobject(g, gcvalue(o));
+end;
+
+//#define markobject(g,t) { if (iswhite(t)) reallymarkobject(g, obj2gco(t)); }
+procedure markobject(const g: Pglobal_State; const t: Pointer);
+begin
+  if iswhite(obj2gco(t)) then reallymarkobject(g, t);
+end;
+
+(*
+** mark an object that can be NULL (either because it is really optional,
+** or it was stripped as debug info, or inside an uncompleted structure)
+*)
+//#define markobjectN(g,t)        { if (t) markobject(g,t); }
+procedure markobjectN(const g: Pglobal_State; const t: Pointer);
+begin
+  if t <> nil then markobject(g,t);
+end;
+
+
 procedure luaC_condGC;
 begin
 
@@ -238,19 +352,147 @@ begin
   {$endif}
 end;
 
+(*
+** =======================================================
+** Generic functions
+** =======================================================
+*)
+
+
+(*
+** one after last element in a hash array
+*)
+//#define gnodelast(h)	gnode(h, cast(size_t, sizenode(h)))
+function gnodelast(const h: PTable): PNode;
+begin
+  Result := gnode(h, sizenode(h^));
+end;
+
+(*
+** link collectable object 'o' into list pointed by 'p'
+*)
+//#define linkgclist(o,p)  ((o)->gclist = (p), (p) = obj2gco(o))
+procedure linkgclist(const o: PTable; var p: PGCObject); overload;
+begin
+  o^.gclist := p;
+  p := obj2gco(o);
+end;
+procedure linkgclist(const o: PProto; var p: PGCObject); overload;
+begin
+  o^.gclist := p;
+  p := obj2gco(o);
+end;
+procedure linkgclist(const o: PClosure; var p: PGCObject); overload;
+begin
+  o^.header.gclist := p;
+  p := obj2gco(o);
+end;
+procedure linkgclist(const o: PCClosure; var p: PGCObject); overload;
+begin
+  o^.header.gclist := p;
+  p := obj2gco(o);
+end;
+procedure linkgclist(const o: PLClosure; var p: PGCObject); overload;
+begin
+  o^.header.gclist := p;
+  p := obj2gco(o);
+end;
+procedure linkgclist(const o: Plua_State; var p: PGCObject); overload;
+begin
+  o^.gclist := p;
+  p := obj2gco(o);
+end;
+
+(*
+** If key is not marked, mark its entry as dead. This allows key to be
+** collected, but keeps its entry in the table.  A dead node is needed
+** when Lua looks up for a key (it may be part of a chain) and when
+** traversing a weak table (key might be removed from the table during
+** traversal). Other places never manipulate dead keys, because its
+** associated nil value is enough to signal that the entry is logically
+** empty.
+*)
+//static void removeentry (Node *n)
+procedure removeentry(const n: PNode);
+begin
+  lua_assert(ttisnil(gval(n)));
+  if (valiswhite(gkey(n))) then
+    setdeadvalue(wgkey(n));  //* unused and unmarked key; remove it */
+end;
+
+
+(*
+** tells whether a key or value can be cleared from a weak
+** table. Non-collectable objects are never removed from weak
+** tables. Strings behave as 'values', so are never removed too. for
+** other objects: if really collected, cannot keep them; for objects
+** being finalized, keep them in keys, but not in values
+*)
+//static int iscleared (global_State *g, const TValue *o)
+function iscleared(const g: Pglobal_State; const o: PTValue): Boolean;
+begin
+  if (not iscollectable(o)) then
+    Result := False
+  else if (ttisstring(o)) then
+  begin
+    markobject(g, tsvalue(o));  //* strings are 'values', so are never weak */
+    Result := False;
+  end
+  else Result := iswhite(gcvalue(o));
+end;
+
+(*
+** barrier that moves collector forward, that is, mark the white object
+** being pointed by a black object. (If in sweep phase, clear the black
+** object to white [sweep it] to avoid other barrier calls for this
+** same object.)
+*)
 procedure luaC_barrier_(const L: Plua_State; const o, v: PGCObject);
+var
+  gs: Pglobal_State;
 begin
-
+  gs := L^.l_G;
+  lua_assert(isblack(o) and iswhite(v) and not isdead(gs, v) and not isdead(gs, o));
+  if (keepinvariant(gs)) then //* must keep invariant? */
+    reallymarkobject(gs, v)  //* restore invariant */
+  else  //* sweep phase */
+  begin
+    lua_assert(issweepphase(gs));
+    makewhite(gs, o);  //* mark main obj. as white to avoid other barriers */
+  end;
 end;
 
-procedure luaC_barrierback_(const L: Plua_State; const o: PTable);
+(*
+** barrier that moves collector backward, that is, mark the black object
+** pointing to a white object as gray again.
+*)
+procedure luaC_barrierback_(const L: Plua_State; const t: PTable);
+var
+  gs: Pglobal_State;
+  o: PGCObject absolute t;
 begin
-
+  gs := L^.l_G;
+  lua_assert(isblack(o) and not isdead(gs, o));
+  black2gray(o);  //* make table gray (again) */
+  linkgclist(t, gs^.grayagain);
 end;
 
+(*
+** barrier for assignments to closed upvalues. Because upvalues are
+** shared among closures, it is impossible to know the color of all
+** closures pointing to it. So, we assume that the object being assigned
+** must be marked.
+*)
 procedure luaC_upvalbarrier_(const L: Plua_State; const uv: PUpVal);
+var
+  gs: Pglobal_State;
+  o: PGCObject;
 begin
-
+  gs := L^.l_G;
+  o := gcvalue(uv^.v);
+  lua_assert(not upisopen(uv));  //* ensured by macro luaC_upvalbarrier */
+  if (keepinvariant(gs)) then
+    markobject(gs, o);
 end;
 
 //#define luaC_barrier(L,p,v) (  \
@@ -289,8 +531,157 @@ begin
     luaC_upvalbarrier_(L,uv);
 end;
 
-procedure luaC_fix(const L: Plua_State; const o: PGCObject);
+(*
+** =======================================================
+** Mark functions
+** =======================================================
+*)
+
+
+(*
+** mark an object. Userdata, strings, and closed upvalues are visited
+** and turned black here. Other objects are marked gray and added
+** to appropriate list to be visited (and turned black) later. (Open
+** upvalues are already linked in 'headuv' list.)
+*)
+//static void reallymarkobject (global_State *g, GCObject *o)
+procedure reallymarkobject(const g: Pglobal_State; o: PGCObject);
+label reentry;
+var
+  uvalue: TValue;
 begin
+reentry:
+
+  white2gray(o);
+  case (o^.tt) of
+    LUA_TSHRSTR: begin
+      gray2black(o^);
+      g^.GCmemtrav := g^.GCmemtrav + sizelstring(gco2ts(o)^.shrlen);
+    end;
+    LUA_TLNGSTR: begin
+      gray2black(o^);
+      g^.GCmemtrav += sizelstring(gco2ts(o)^.u_lnglen);
+    end;
+    LUA_TUSERDATA: begin
+      markobjectN(g, gco2u(o)^.metatable);  //* mark its metatable */
+      gray2black(o^);
+      g^.GCmemtrav := g^.GCmemtrav + sizeudata(gco2u(o));
+      getuservalue(g^.mainthread, gco2u(o), @uvalue);
+      if (valiswhite(@uvalue)) then //* markvalue(g, &uvalue); */
+      begin
+        o := gcvalue(@uvalue);
+        goto reentry;
+      end;
+    end;
+    LUA_TLCL:
+      linkgclist(gco2lcl(o), g^.gray);
+
+    LUA_TCCL:
+      linkgclist(gco2ccl(o), g^.gray);
+
+    LUA_TTABLE:
+      linkgclist(gco2t(o), g^.gray);
+
+    LUA_TTHREAD:
+      linkgclist(gco2th(o), g^.gray);
+
+    LUA_TPROTO:
+      linkgclist(gco2p(o), g^.gray);
+
+    else lua_assert(0);
+  end;
+
+end;
+
+
+(*
+** mark metamethods for basic types
+*)
+//static void markmt (global_State *g)
+procedure markmt(const g: Pglobal_State);
+var
+  i: Integer;
+begin
+  for i:=0 to LUA_NUMTAGS-1 do
+    markobjectN(g, g^.mt[i]);
+end;
+
+
+(*
+** mark all objects in list of being-finalized
+*)
+//static void markbeingfnz (global_State *g)
+procedure markbeingfnz(const g: Pglobal_State);
+var
+  o: PGCObject;
+begin
+  o := g^.tobefnz;
+  while (o <> Nil) do
+  begin
+    markobject(g, o);
+    o := o^.next;
+  end;
+end;
+
+
+(*
+** Mark all values stored in marked open upvalues from non-marked threads.
+** (Values from marked threads were already marked when traversing the
+** thread.) Remove from the list threads that no longer have upvalues and
+** not-marked threads.
+*)
+//static void remarkupvals (global_State *g)
+procedure remarkupvals(const g: Pglobal_State);
+var
+  thread: Plua_State;
+  p: PPlua_State;
+  uv: PUpVal;
+begin
+  p := @g^.twups;
+  while (p^ <> Nil) do
+  begin
+    thread := p^;
+    lua_assert(not isblack(PGCObject(thread)));  //* threads are never black */
+    if isgray(PGCObject(thread)) and (thread^.openupval <> Nil) then
+      p := @thread^.twups  //* keep marked thread with upvalues in the list */
+    else   //* thread is not marked or without upvalues */
+    begin
+      p^ := thread^.twups;  //* remove thread from the list */
+      thread^.twups := thread;  //* mark that it is out of list */
+      uv := thread^.openupval;
+      while (uv <> Nil) do
+      begin
+        if (uv^.u_open_touched <> 0) then
+        begin
+          markvalue(g, uv^.v);  //* remark upvalue's value */
+          uv^.u_open_touched := 0;
+        end;
+        uv := uv^.u_open_next;
+      end;
+    end;
+  end;
+end;
+
+
+(*
+** mark root set and reset all gray lists, to start a new collection
+*)
+//static void restartcollection (global_State *g)
+procedure restartcollection(const g: Pglobal_State);
+begin
+  g^.gray := Nil;
+  g^.grayagain := Nil;
+  g^.weak := Nil;
+  g^.allweak := Nil;
+  g^.ephemeron := Nil;
+  markobject(g, g^.mainthread);
+  markvalue(g, @g^.l_registry);
+  markmt(g);
+  markbeingfnz(g);  //* mark any finalizing object left from previous cycle */
+end;
+
+(* ======================================================= *)
+
 
 end;
 
