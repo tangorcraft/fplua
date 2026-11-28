@@ -1222,6 +1222,180 @@ end;
 (* ======================================================= *)
 
 
+(*
+** =======================================================
+** Finalization
+** =======================================================
+*)
+
+(*
+** If possible, shrink string table
+*)
+//static void checkSizes (lua_State *L, global_State *g)
+procedure checkSizes(const L: Plua_State; const g: Pglobal_State);
+var
+  olddebt: l_mem;
+begin
+  if (g^.gckind <> KGC_EMERGENCY) then
+  begin
+    olddebt := g^.GCdebt;
+    if g^.strt.nuse < (g^.strt.size div 4) then //* string table too big? */
+      luaS_resize(L, g^.strt.size div 2);  //* shrink it a little */
+    g^.GCestimate := g^.GCestimate + g^.GCdebt - olddebt;  //* update estimate */
+  end;
+end;
+
+
+//static GCObject *udata2finalize (global_State *g)
+function udata2finalize(const g: Pglobal_State): PGCObject;
+begin
+  Result := g^.tobefnz;  //* get first element */
+  lua_assert(tofinalize(Result));
+  g^.tobefnz := Result^.next;  //* remove it from 'tobefnz' list */
+  Result^.next := g^.allgc;  //* return it to 'allgc' list */
+  g^.allgc := Result;
+  //resetbit(Result^.marked, FINALIZEDBIT);  //* object is "normal" again */
+  Result^.marked := Result^.marked and not bitmask_FINALIZEDBIT;
+  if (issweepphase(g)) then
+    makewhite(g, Result);  //* "sweep" object */
+  //return o;
+end;
+
+
+//static void dothecall (lua_State *L, void *ud)
+procedure dothecall(const L: Plua_State; const ud: Pointer);
+begin
+  //UNUSED(ud);
+  luaD_callnoyield(L, L^.top - 2, 0);
+end;
+
+
+//static void GCTM (lua_State *L, int propagateerrors)
+procedure GCTM(const L: Plua_State; const propagateerrors: Boolean);
+var
+  g: Pglobal_State;
+  tm: PTValue;
+  v: TValue;
+  status: Integer;
+  oldah, running: lu_byte;
+  msg: PChar;
+begin
+  g := L^.l_G;
+  setgcovalue(L, @v, udata2finalize(g));
+  tm := luaT_gettmbyobj(L, @v, TM_GC);
+  if (tm <> Nil) and ttisfunction(tm) then  //* is there a finalizer? */
+  begin
+    oldah := L^.allowhook;
+    running := g^.gcrunning;
+    L^.allowhook := 0;  //* stop debug hooks during GC metamethod */
+    g^.gcrunning := 0;  //* avoid GC steps */
+    setobj2s(L, L^.top, tm);  //* push finalizer... */
+    setobj2s(L, L^.top + 1, @v);  //* ... and its argument */
+    L^.top := L^.top + 2;  //* and (next line) call the finalizer */
+    L^.ci^.callstatus := L^.ci^.callstatus or CIST_FIN;  //* will run a finalizer */
+    status := luaD_pcall(L, @dothecall, Nil, savestack(L, L^.top - 2), 0);
+    L^.ci^.callstatus := L^.ci^.callstatus and not CIST_FIN;  //* not running a finalizer anymore */
+    L^.allowhook := oldah;  //* restore hooks */
+    g^.gcrunning := running;  //* restore state */
+    if (status <> LUA_OK) and propagateerrors then  //* error while running __gc? */
+    begin
+      if (status = LUA_ERRRUN) then  //* is there an error object? */
+      begin
+        if (ttisstring(L^.top - 1)) then
+          msg := svalue(L^.top - 1)
+        else
+          msg := 'no message';
+        luaO_pushfstring(L, 'error in __gc metamethod (%s)', [msg]);
+        status := LUA_ERRGCMM;  //* error in __gc metamethod */
+      end;
+      luaD_throw(L, status);  //* re-throw error */
+    end;
+  end;
+end;
+
+
+(*
+** call a few (up to 'g->gcfinnum') finalizers
+*)
+//static int runafewfinalizers (lua_State *L)
+function runafewfinalizers(const L: Plua_State): Integer;
+var
+  g: Pglobal_State;
+  i: Cardinal;
+begin
+  g := L^.l_G;
+  lua_assert((g^.tobefnz = nil) or (g^.gcfinnum > 0));
+  i := 0;
+  while (g^.tobefnz <> nil) and (i < g^.gcfinnum) do
+  begin
+    GCTM(L, True);  //* call one finalizer */
+    inc(i);
+  end;
+  if (g^.tobefnz = nil) then //* nothing more to finalize? */
+    g^.gcfinnum := 0
+  else
+    g^.gcfinnum := g^.gcfinnum * 2;  //* else call a few more next time */
+  Result := i;
+end;
+
+
+(*
+** call all pending finalizers
+*)
+//static void callallpendingfinalizers (lua_State *L)
+procedure callallpendingfinalizers(const L: Plua_State);
+var
+  g: Pglobal_State;
+begin
+  g := L^.l_G;
+  while (g^.tobefnz <> nil) do
+    GCTM(L, False);
+end;
+
+
+(*
+** find last 'next' field in list 'p' list (to add elements in its end)
+*)
+//static GCObject **findlast (GCObject **p)
+function findlast(p: PPGCObject): PPGCObject;
+begin
+  while (p^ <> Nil) do
+    p := @(p^)^.next;
+  Result := p;
+end;
+
+
+(*
+** move all unreachable objects (or 'all' objects) that need
+** finalization from list 'finobj' to list 'tobefnz' (to be finalized)
+*)
+//static void separatetobefnz (global_State *g, int all)
+procedure separatetobefnz(const g: Pglobal_State; const all: Boolean);
+var
+  curr: PGCObject;
+  p, lastnext: PPGCObject;
+begin
+  p := @g^.finobj;
+  lastnext := findlast(@g^.tobefnz);
+  while (p^ <> Nil) do  //* traverse all finalizable objects */
+  begin
+    curr := p^;
+    lua_assert(tofinalize(curr));
+    if (not (iswhite(curr) or all)) then //* not being collected? */
+      p := @curr^.next  //* don't bother with it */
+    else
+    begin
+      p^ := curr^.next;  //* remove 'curr' from 'finobj' list */
+      curr^.next := lastnext^;  //* link at the end of 'tobefnz' list */
+      lastnext^ := curr;
+      lastnext := @curr^.next;
+    end;
+  end;
+end;
+
+(* ======================================================= *)
+
+
 procedure luaC_fix(const L: Plua_State; const o: PGCObject);
 var
   gs: Pglobal_State;
@@ -1271,8 +1445,32 @@ begin
 end;
 
 procedure luaC_checkfinalizer(const L: Plua_State; const o: PGCObject; const mt: PTable);
+var
+  g: Pglobal_State;
+  p: PPGCObject;
 begin
-
+  g := L^.l_G;
+  if tofinalize(o) or                  //* obj. is already marked... */
+     (gfasttm(g, mt, TM_GC) = Nil) then //* or has no finalizer? */
+    Exit  //* nothing to be done */
+  else   //* move 'o' to 'finobj' list */
+  begin
+    if (issweepphase(g)) then
+    begin
+      makewhite(g, o);  //* "sweep" object 'o' */
+      if (g^.sweepgc = @o^.next) then //* should not remove 'sweepgc' object */
+        g^.sweepgc := sweeptolive(L, g^.sweepgc);  //* change 'sweepgc' */
+    end;
+    //* search for pointer pointing to 'o' */
+    p := @g^.allgc;
+    while (p^ <> o) do
+      p := @(p^)^.next;
+    p^ := o^.next;  //* remove 'o' from 'allgc' list */
+    o^.next := g^.finobj;  //* link it in 'finobj' list */
+    g^.finobj := o;
+    //l_setbit(o^.marked, FINALIZEDBIT);  //* mark it as such */
+    o^.marked := o^.marked or bitmask_FINALIZEDBIT;
+  end;
 end;
 
 procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
