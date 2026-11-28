@@ -12,9 +12,9 @@ uses
 
 { TMS enum defined in fplua_common }
 
-function gfasttm(const g: global_State; const et: PTable; const e: TMS): PTValue;
+function gfasttm(const g: Pglobal_State; const et: PTable; const e: TMS): PTValue;
 
-function fasttm(const l: lua_State; const et: PTable; const e: TMS): PTValue;
+function fasttm(const L: Plua_State; const et: PTable; const e: TMS): PTValue;
 
 function ttypename(const x: Integer): PChar;
 
@@ -64,17 +64,17 @@ const
 
 //#define gfasttm(g,et,e) ((et) == NULL ? NULL : \
 //  ((et)->flags & (1u<<(e))) ? NULL : luaT_gettm(et, e, (g)->tmname[e]))
-function gfasttm(const g: global_State; const et: PTable; const e: TMS): PTValue;
+function gfasttm(const g: Pglobal_State; const et: PTable; const e: TMS): PTValue;
 begin
   if et = nil then Exit(nil);
   if (et^.flags and (1 shl ord(e))) <> 0 then Exit(nil);
-  Result := luaT_gettm(et, e, g.tmname[e]);
+  Result := luaT_gettm(et, e, g^.tmname[e]);
 end;
 
 //#define fasttm(l,et,e)  gfasttm(G(l), et, e)
-function fasttm(const l: lua_State; const et: PTable; const e: TMS): PTValue;
+function fasttm(const L: Plua_State; const et: PTable; const e: TMS): PTValue;
 begin
-  Result := gfasttm(l.l_G^, et, e);
+  Result := gfasttm(L^.l_G, et, e);
 end;
 
 //#define ttypename(x)    luaT_typenames_[(x) + 1]

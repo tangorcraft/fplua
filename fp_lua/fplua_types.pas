@@ -534,8 +534,7 @@ end;
 
 function CClosure_upvalueN(const v: PCClosure; const n: Integer): PTValue;
 begin
-  Result := @v^.upvalue_0;
-  Result := Result + n;
+  Result := PTValue(@v^.upvalue_0) + n;
 end;
 
 function LClosure_upvals(const v: PLClosure): PPUpVal;

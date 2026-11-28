@@ -115,7 +115,7 @@ procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 implementation
 
 uses
-  fp_lua,
+  SysUtils, fp_lua,
   ldebug, ldo, lfunc, lmem, lobject, lstate, lstring, ltable, ltm;
 
 (*
@@ -683,6 +683,375 @@ end;
 (* ======================================================= *)
 
 
+(*
+** =======================================================
+** Traverse functions
+** =======================================================
+*)
+
+(*
+** Traverse a table with weak values and link it to proper list. During
+** propagate phase, keep it in 'grayagain' list, to be revisited in the
+** atomic phase. In the atomic phase, if table has any white value,
+** put it in 'weak' list, to be cleared.
+*)
+//static void traverseweakvalue (global_State *g, Table *h)
+procedure traverseweakvalue(const g: Pglobal_State; const h: PTable);
+var
+  n, limit: PNode;
+  hasclears: Boolean;
+begin
+  limit := gnodelast(h);
+  (* if there is array part, assume it may have white values (it is not
+     worth traversing it now just to check) *)
+  hasclears := (h^.sizearray > 0);
+  n := gnode(h, 0);
+  while (n < limit) do  //* traverse hash part */
+  begin
+    checkdeadkey(n);
+    if (ttisnil(gval(n))) then //* entry is empty? */
+      removeentry(n)  //* remove it */
+    else
+    begin
+      lua_assert(not ttisnil(gkey(n)));
+      markvalue(g, gkey(n));  //* mark key */
+      if (not hasclears and iscleared(g, gval(n))) then //* is there a white value? */
+        hasclears := True;  //* table will have to be cleared */
+    end;
+    Inc(n);
+  end;
+  if (g^.gcstate = GCSpropagate) then
+    linkgclist(h, g^.grayagain)  //* must retraverse it in atomic phase */
+  else if (hasclears) then
+    linkgclist(h, g^.weak);  //* has to be cleared later */
+end;
+
+
+(*
+** Traverse an ephemeron table and link it to proper list. Returns true
+** iff any object was marked during this traversal (which implies that
+** convergence has to continue). During propagation phase, keep table
+** in 'grayagain' list, to be visited again in the atomic phase. In
+** the atomic phase, if table has any white->white entry, it has to
+** be revisited during ephemeron convergence (as that key may turn
+** black). Otherwise, if it has any white key, table has to be cleared
+** (in the atomic phase).
+*)
+//static int traverseephemeron (global_State *g, Table *h)
+function traverseephemeron(const g: Pglobal_State; const h: PTable): Boolean;
+var
+  marked, hasclears, hasww: Boolean;
+  limit, n: PNode;
+  i: Cardinal;
+begin
+  marked := False;  //* true if an object is marked in this traversal */
+  hasclears := False;  //* true if table has white keys */
+  hasww := False;  //* true if table has entry "white-key ^. white-value" */
+  limit := gnodelast(h);
+  //* traverse array part */
+  for i := 0 to h^.sizearray-1 do
+  begin
+    if (valiswhite(@h^.array_[i])) then
+    begin
+      marked := True;
+      reallymarkobject(g, gcvalue(@h^.array_[i]));
+    end;
+  end;
+  //* traverse hash part */
+  n := gnode(h, 0);
+  while (n < limit) do
+  begin
+    checkdeadkey(n);
+    if (ttisnil(gval(n))) then //* entry is empty? */
+      removeentry(n)  //* remove it */
+    else if (iscleared(g, gkey(n))) then  //* key is not marked (yet)? */
+    begin
+      hasclears := True;  //* table must be cleared */
+      if (valiswhite(gval(n))) then //* value not marked yet? */
+        hasww := True;  //* white-white entry */
+    end
+    else if (valiswhite(gval(n))) then  //* value not marked yet? */
+    begin
+      marked := True;
+      reallymarkobject(g, gcvalue(gval(n)));  //* mark it now */
+    end;
+    Inc(n);
+  end;
+  //* link table into proper list */
+  if (g^.gcstate = GCSpropagate) then
+    linkgclist(h, g^.grayagain)  //* must retraverse it in atomic phase */
+  else if (hasww) then //* table has white^.white entries? */
+    linkgclist(h, g^.ephemeron)  //* have to propagate again */
+  else if (hasclears) then //* table has white keys? */
+    linkgclist(h, g^.allweak);  //* may have to clean white keys */
+  Result := marked;
+end;
+
+
+//static void traversestrongtable (global_State *g, Table *h)
+procedure traversestrongtable(const g: Pglobal_State; const h: PTable);
+var
+  limit, n: PNode;
+  i: Cardinal;
+begin
+  limit := gnodelast(h);
+  for i := 0 to h^.sizearray-1 do  //* traverse array part */
+    markvalue(g, @h^.array_[i]);
+  n := gnode(h, 0);
+  while (n < limit) do  //* traverse hash part */
+  begin
+    checkdeadkey(n);
+    if (ttisnil(gval(n))) then //* entry is empty? */
+      removeentry(n)  //* remove it */
+    else
+    begin
+      lua_assert(not ttisnil(gkey(n)));
+      markvalue(g, gkey(n));  //* mark key */
+      markvalue(g, gval(n));  //* mark value */
+    end;
+    inc(n);
+  end;
+end;
+
+
+//static lu_mem traversetable (global_State *g, Table *h)
+function traversetable(const g: Pglobal_State; const h: PTable): lu_mem;
+var
+  weakkey, weakvalue: PChar;
+  mode: PTValue;
+begin
+  mode := gfasttm(g, h^.metatable, TM_MODE);
+  markobjectN(g, h^.metatable);
+  if (mode <> nil) and ttisstring(mode) then  //* is there a weak mode? */
+  begin
+    weakkey := strscan(svalue(mode), 'k');
+    weakvalue := strscan(svalue(mode), 'v');
+  end
+  else
+  begin
+    weakkey := nil;
+    weakvalue := nil;
+  end;
+  if (weakkey<>nil) or (weakvalue<>nil) then  //* is really weak? */
+  begin
+    black2gray(PGCObject(h));  //* keep table gray */
+    if (weakkey = nil) then //* strong keys? */
+      traverseweakvalue(g, h)
+    else if (weakvalue = nil) then //* strong values? */
+      traverseephemeron(g, h)
+    else  //* all weak */
+      linkgclist(h, g^.allweak);  //* nothing to traverse now */
+  end
+  else  //* not weak */
+    traversestrongtable(g, h);
+  Result := sizeof(Table) + sizeof(TValue) * h^.sizearray +
+            sizeof(Node) * allocsizenode(h);
+end;
+
+
+(*
+** Traverse a prototype. (While a prototype is being build, its
+** arrays can be larger than needed; the extra slots are filled with
+** NULL, so the use of 'markobjectN')
+*)
+//static int traverseproto (global_State *g, Proto *f)
+function traverseproto(const g: Pglobal_State; const f: PProto): lu_mem;
+var
+  i: Integer;
+begin
+  if (f^.cache <> nil) and iswhite(PGCObject(f^.cache)) then
+    f^.cache := Nil;  //* allow cache to be collected */
+  markobjectN(g, f^.source);
+  for i := 0 to f^.sizek-1 do  //* mark literals */
+    markvalue(g, @f^.k[i]);
+  for i := 0 to f^.sizeupvalues-1 do  //* mark upvalue names */
+    markobjectN(g, f^.upvalues[i].name);
+  for i := 0 to f^.sizep-1 do  //* mark nested protos */
+    markobjectN(g, f^.p[i]);
+  for i := 0 to f^.sizelocvars-1 do  //* mark local-variable names */
+    markobjectN(g, f^.locvars[i].varname);
+  Result := sizeof(Proto) + sizeof(Instruction) * f^.sizecode +
+            sizeof(PProto) * f^.sizep +
+            sizeof(TValue) * f^.sizek +
+            sizeof(Integer) * f^.sizelineinfo +
+            sizeof(LocVar) * f^.sizelocvars +
+            sizeof(Upvaldesc) * f^.sizeupvalues;
+end;
+
+
+//static lu_mem traverseCclosure (global_State *g, CClosure *cl)
+function traverseCclosure(const g: Pglobal_State; const cl: PCClosure): lu_mem;
+var
+  i: Integer;
+begin
+  for i := 0 to cl^.header.nupvalues-1 do //* mark its upvalues */
+    markvalue(g, CClosure_upvalueN(cl, i));
+  Result := sizeCclosure(cl^.header.nupvalues);
+end;
+
+(*
+** open upvalues point to values in a thread, so those values should
+** be marked when the thread is traversed except in the atomic phase
+** (because then the value cannot be changed by the thread and the
+** thread may not be traversed again)
+*)
+//static lu_mem traverseLclosure (global_State *g, LClosure *cl)
+function traverseLclosure(const g: Pglobal_State; const cl: PLClosure): lu_mem;
+var
+  i: Integer;
+  uv: PUpVal;
+begin
+  markobjectN(g, cl^.p);  //* mark its prototype */
+  for i := 0 to cl^.header.nupvalues-1 do  //* mark its upvalues */
+  begin
+    uv := LClosure_upvalsN(cl, i);
+    if (uv <> Nil) then
+    begin
+      if upisopen(uv) and (g^.gcstate <> GCSinsideatomic) then
+        uv^.u_open_touched := 1  //* can be marked in 'remarkupvals' */
+      else
+        markvalue(g, uv^.v);
+    end;
+  end;
+  Result := sizeLclosure(cl^.header.nupvalues);
+end;
+
+
+//static lu_mem traversethread (global_State *g, lua_State *th)
+function traversethread(const g: Pglobal_State; const th: Plua_State): lu_mem;
+var
+  o, lim: StkId;
+begin
+  o := th^.stack;
+  if (o = Nil) then
+    Exit(1);  //* stack not completely built yet */
+  lua_assert((g^.gcstate = GCSinsideatomic) or
+             (th^.openupval = Nil) or isintwups(th));
+  while (o < th^.top) do //* mark live elements in the stack */
+  begin
+    markvalue(g, o);
+    inc(o);
+  end;
+  if (g^.gcstate = GCSinsideatomic) then  //* final traversal? */
+  begin
+    lim := th^.stack + th^.stacksize;  //* real end of stack */
+    while (o < lim) do //* clear not-marked stack slice */
+    begin
+      setnilvalue(o);
+      inc(o);
+    end;
+    //* 'remarkupvals' may have removed thread from 'twups' list */
+    if not isintwups(th) and (th^.openupval <> Nil) then
+    begin
+      th^.twups := g^.twups;  //* link it back to the list */
+      g^.twups := th;
+    end;
+  end
+  else if (g^.gckind <> KGC_EMERGENCY) then
+    luaD_shrinkstack(th); //* do not change stack in emergency cycle */
+  Result := (sizeof(lua_State) + sizeof(TValue) * th^.stacksize +
+             sizeof(CallInfo) * th^.nci);
+end;
+
+
+(*
+** traverse one gray object, turning it to black (except for threads,
+** which are always gray).
+*)
+//static void propagatemark (global_State *g)
+procedure propagatemark(const g: Pglobal_State);
+var
+  size: lu_mem;
+  o: PGCObject;
+  h: PTable;
+  Lcl: PLClosure;
+  Ccl: PCClosure;
+  th: Plua_State;
+  p: PProto;
+begin
+  o := g^.gray;
+  lua_assert(isgray(o));
+  gray2black(o^);
+  case (o^.tt) of
+    LUA_TTABLE: begin
+      h := gco2t(o);
+      g^.gray := h^.gclist;  //* remove from 'gray' list */
+      size := traversetable(g, h);
+    end;
+    LUA_TLCL: begin
+      Lcl := gco2lcl(o);
+      g^.gray := Lcl^.header.gclist;  //* remove from 'gray' list */
+      size := traverseLclosure(g, Lcl);
+    end;
+    LUA_TCCL: begin
+      Ccl := gco2ccl(o);
+      g^.gray := Ccl^.header.gclist;  //* remove from 'gray' list */
+      size := traverseCclosure(g, Ccl);
+    end;
+    LUA_TTHREAD: begin
+      th := gco2th(o);
+      g^.gray := th^.gclist;  //* remove from 'gray' list */
+      linkgclist(th, g^.grayagain);  //* insert into 'grayagain' list */
+      black2gray(o);
+      size := traversethread(g, th);
+    end;
+    LUA_TPROTO: begin
+      p := gco2p(o);
+      g^.gray := p^.gclist;  //* remove from 'gray' list */
+      size := traverseproto(g, p);
+    end;
+    else begin
+      lua_assert(0);
+      Exit;
+    end;
+  end;
+  g^.GCmemtrav := g^.GCmemtrav + size;
+end;
+
+
+//static void propagateall (global_State *g)
+procedure propagateall(const g: Pglobal_State);
+begin
+  while (g^.gray <> nil) do propagatemark(g);
+end;
+
+
+//static void convergeephemerons (global_State *g)
+procedure convergeephemerons(const g: Pglobal_State);
+var
+  changed: Integer;
+  w, next: PGCObject;
+begin
+  repeat
+    next := g^.ephemeron;  //* get ephemeron list */
+    g^.ephemeron := Nil;  //* tables may return to this list when traversed */
+    changed := 0;
+    while (next <> Nil) do
+    begin
+      w := next;
+      next := gco2t(w)^.gclist;
+      if (traverseephemeron(g, gco2t(w))) then  //* traverse marked some value? */
+      begin
+        propagateall(g);  //* propagate changes */
+        changed := 1;  //* will have to revisit all ephemeron tables */
+      end;
+    end;
+  until changed = 0;
+end;
+
+(* ======================================================= *)
+
+
+procedure luaC_fix(const L: Plua_State; const o: PGCObject);
+var
+  gs: Pglobal_State;
+begin
+  gs := L^.l_G;
+  lua_assert(gs^.allgc = o);  //* object must be 1st in 'allgc' list! */
+  white2gray(o);  //* they will be gray forever */
+  gs^.allgc := o^.next;  //* remove object from 'allgc' list */
+  o^.next := gs^.fixedgc;  //* link it to 'fixedgc' list */
+  gs^.fixedgc := o;
 end;
 
 procedure luaC_freeallobjects(const L: Plua_State);
@@ -705,9 +1074,20 @@ begin
 
 end;
 
+(*
+** create a new collectable object (with given type and size) and link
+** it to 'allgc' list.
+*)
 function luaC_newobj(const L: Plua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
+var
+  g: Pglobal_State;
 begin
-
+  g := L^.l_G;
+  Result := luaM_newobject(L, novariant(tt), sz);
+  Result^.marked := luaC_white(g);
+  Result^.tt := tt;
+  Result^.next := g^.allgc;
+  g^.allgc := Result;
 end;
 
 procedure luaC_checkfinalizer(const L: Plua_State; const o: PGCObject; const mt: PTable);
