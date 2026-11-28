@@ -43,6 +43,7 @@ type
 
   Pglobal_State = ^global_State;
   Plua_State = ^lua_State;
+  PPlua_State = ^Plua_State;
 
   Plua_longjmp = ^lua_longjmp;
 
@@ -77,18 +78,21 @@ type
   ** Common Header for all collectable objects (in macro form, to be
   ** included in other objects)
   *)
-  CommonHeader = record
-    next: PGCObject;
-    tt: lu_byte;
-    marked: lu_byte;
-  end;
+  //CommonHeader = record
+  //  next: PGCObject;
+  //  tt: lu_byte;
+  //  marked: lu_byte;
+  //end;
 
   (*
   ** Common type for all collectable objects
   ** Common type has only the common header
   *)
   GCObject = record
-    header: CommonHeader;
+    //header: CommonHeader;
+    next: PGCObject;
+    tt: lu_byte;
+    marked: lu_byte;
   end;
 
   Value = record case Byte of
@@ -146,7 +150,7 @@ type
   end;
 
   Table = record
-    header: CommonHeader;
+    header: GCObject;
     flags: lu_byte;  //* 1<<p means tagmethod(p) is not present */
     lsizenode: lu_byte;  //* log2 of size of 'node' array */
     sizearray: Cardinal;  //* size of 'array' array */
@@ -162,7 +166,7 @@ type
   ** (aligned according to 'UTString'; see next).
   *)
   TString = record
-    header: CommonHeader;
+    header: GCObject;
     extra: lu_byte;  //* reserved words for short strings; "has hash" for longs */
     shrlen: lu_byte;  //* length for short strings */
     hash: Cardinal;
@@ -183,7 +187,7 @@ type
   ** (aligned according to 'UUdata'; see next).
   *)
   Udata = record
-    header: CommonHeader;
+    header: GCObject;
     ttuv_: lu_byte;  //* user value's tag */
     metatable: PTable;
     len: size_t;  //* number of bytes */
@@ -221,7 +225,7 @@ type
   ** Function Prototypes
   *)
   Proto = record
-    header: CommonHeader;
+    header: GCObject;
     numparams: lu_byte;  //* number of fixed parameters */
     is_vararg: lu_byte;
     maxstacksize: lu_byte;  //* number of registers needed by this function */
@@ -247,7 +251,7 @@ type
   //#define ClosureHeader \
   //        CommonHeader; lu_byte nupvalues; GCObject *gclist
   ClosureHeader = record
-    header: CommonHeader;
+    header: GCObject;
     nupvalues: lu_byte;
     gclist: PGCObject;
   end;
@@ -269,6 +273,7 @@ type
   Closure = record case Byte of
     1:(c: CClosure);
     2:(l: LClosure);
+    3:(header: ClosureHeader);
   end;
 
   stringtable = record
@@ -365,7 +370,7 @@ type
   ** 'per thread' state
   *)
   lua_State = record
-    header: CommonHeader;
+    header: GCObject;
     nci: Word;  //* number of items in 'ci' list */
     status: lu_byte;
     top: StkId;  //* first free slot in the stack */

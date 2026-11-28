@@ -614,7 +614,7 @@ end;
 //#define righttt(obj)            (ttype(obj) == gcvalue(obj)->tt)
 function righttt(const obj: PTValue): Boolean;
 begin
-  Result := ttype(obj) = gcvalue(obj)^.header.tt;
+  Result := ttype(obj) = gcvalue(obj)^.tt;
 end;
 
 //#define checkliveness(L,obj) \
@@ -628,7 +628,7 @@ begin
       righttt(obj) and
       (
         (L = Nil) or
-        not isdead(L^.l_G^, gcvalue(obj)^.header)
+        not isdead(L^.l_G, gcvalue(obj))
       )
     )
   );
@@ -708,7 +708,7 @@ end;
 procedure setgcovalue(const L: Plua_State; const o: PTValue; const x: PGCObject);
 begin
   o^.value_.gc := x;
-  settt_(o, ctb(x^.header.tt));
+  settt_(o, ctb(x^.tt));
 end;
 
 //#define setsvalue(L,obj,x) \

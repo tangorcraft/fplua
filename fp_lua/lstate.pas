@@ -162,57 +162,57 @@ end;
 //        check_exp(novariant((o)->tt) == LUA_TSTRING, &((cast_u(o))->ts))
 function gco2ts(const o: PGCObject): PTString;
 begin
-  Result := check_exp(novariant(o^.header.tt) = LUA_TSTRING, o);
+  Result := check_exp(novariant(o^.tt) = LUA_TSTRING, o);
 end;
 
 //#define gco2u(o)  check_exp((o)->tt == LUA_TUSERDATA, &((cast_u(o))->u))
 function gco2u(const o: PGCObject): PUdata;
 begin
-  Result := check_exp(o^.header.tt = LUA_TUSERDATA, o);
+  Result := check_exp(o^.tt = LUA_TUSERDATA, o);
 end;
 
 //#define gco2lcl(o)  check_exp((o)->tt == LUA_TLCL, &((cast_u(o))->cl.l))
 function gco2lcl(const o: PGCObject): PLClosure;
 begin
-  Result := check_exp(o^.header.tt = LUA_TLCL, o);
+  Result := check_exp(o^.tt = LUA_TLCL, o);
 end;
 
 //#define gco2ccl(o)  check_exp((o)->tt == LUA_TCCL, &((cast_u(o))->cl.c))
 function gco2ccl(const o: PGCObject): PCClosure;
 begin
-  Result := check_exp(o^.header.tt = LUA_TCCL, o);
+  Result := check_exp(o^.tt = LUA_TCCL, o);
 end;
 
 //#define gco2cl(o)  \
 //        check_exp(novariant((o)->tt) == LUA_TFUNCTION, &((cast_u(o))->cl))
 function gco2cl(const o: PGCObject): PClosure;
 begin
-  Result := check_exp(novariant(o^.header.tt) = LUA_TFUNCTION, o);
+  Result := check_exp(novariant(o^.tt) = LUA_TFUNCTION, o);
 end;
 
 //#define gco2t(o)  check_exp((o)->tt == LUA_TTABLE, &((cast_u(o))->h))
 function gco2t(const o: PGCObject): PTable;
 begin
-  Result := check_exp(o^.header.tt = LUA_TTABLE, o);
+  Result := check_exp(o^.tt = LUA_TTABLE, o);
 end;
 
 //#define gco2p(o)  check_exp((o)->tt == LUA_TPROTO, &((cast_u(o))->p))
 function gco2p(const o: PGCObject): PProto;
 begin
-  Result := check_exp(o^.header.tt = LUA_TPROTO, o);
+  Result := check_exp(o^.tt = LUA_TPROTO, o);
 end;
 
 //#define gco2th(o)  check_exp((o)->tt == LUA_TTHREAD, &((cast_u(o))->th))
 function gco2th(const o: PGCObject): Plua_State;
 begin
-  Result := check_exp(o^.header.tt = LUA_TTHREAD, o);
+  Result := check_exp(o^.tt = LUA_TTHREAD, o);
 end;
 
 //#define obj2gco(v) \
 //        check_exp(novariant((v)->tt) < LUA_TDEADKEY, (&(cast_u(v)->gc)))
 function obj2gco(const v: Pointer): PGCObject;
 begin
-  Result := check_exp(novariant(cast_u(v)^.gc.header.tt) < LUA_TDEADKEY, v);
+  Result := check_exp(novariant(cast_u(v)^.gc.tt) < LUA_TDEADKEY, v);
 end;
 
 function gettotalbytes(const g: Pglobal_State): lu_mem;

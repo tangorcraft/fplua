@@ -46,7 +46,7 @@ const
   GCScallfin     = 6;
   GCSpause       = 7;
 
-function issweepphase(const g: global_State): Boolean;
+function issweepphase(const g: Pglobal_State): Boolean;
 
 (*
 ** macro to tell when main invariant (white objects cannot point to black
@@ -55,24 +55,24 @@ function issweepphase(const g: global_State): Boolean;
 ** still-black objects. The invariant is restored when sweep ends and
 ** all objects are white again.
 *)
-function keepinvariant(const g: global_State): Boolean;
+function keepinvariant(const g: Pglobal_State): Boolean;
 
 
-function iswhite(const x: CommonHeader): Boolean;
-function isblack(const x: CommonHeader): Boolean;
+function iswhite(const x: PGCObject): Boolean;
+function isblack(const x: PGCObject): Boolean;
 //* neither white nor black */
-function isgray(const x: CommonHeader): Boolean;
+function isgray(const x: PGCObject): Boolean;
 
-function tofinalize(const x: CommonHeader): Boolean;
+function tofinalize(const x: PGCObject): Boolean;
 
-function otherwhite(const g: global_State): lu_byte;
+function otherwhite(const g: Pglobal_State): lu_byte;
 function isdeadm(const ow, m: lu_byte): Boolean;
-function isdead(const g: global_State; const v: CommonHeader): Boolean;
+function isdead(const g: Pglobal_State; const v: PGCObject): Boolean;
 
-procedure changewhite(var x: CommonHeader);
-procedure gray2black(var x: CommonHeader);
+procedure changewhite(var x: GCObject);
+procedure gray2black(var x: GCObject);
 
-function luaC_white(const g: global_State): lu_byte;
+function luaC_white(const g: Pglobal_State): lu_byte;
 
 
 (*
@@ -84,7 +84,7 @@ function luaC_white(const g: global_State): lu_byte;
 //#define luaC_condGC(L,pre,pos) \
 //        { if (G(L)->GCdebt > 0) { pre; luaC_step(L); pos;}; \
 //          condchangemem(L,pre,pos); }
-procedure luaC_condGC(const L: Plua_State); // stub declaration, this macro need to be uwrapped
+procedure luaC_condGC(); // stub declaration, this macro need to be uwrapped
 
 (* more often than not, 'pre'/'pos' are empty *)
 procedure luaC_checkGC(const L: Plua_State);
@@ -148,47 +148,47 @@ const
 
 //#define issweepphase(g)  \
 //        (GCSswpallgc <= (g)->gcstate && (g)->gcstate <= GCSswpend)
-function issweepphase(const g: global_State): Boolean;
+function issweepphase(const g: Pglobal_State): Boolean;
 begin
-  Result := (GCSswpallgc <= g.gcstate) and (g.gcstate <= GCSswpend);
+  Result := (GCSswpallgc <= g^.gcstate) and (g^.gcstate <= GCSswpend);
 end;
 
 //#define keepinvariant(g)        ((g)->gcstate <= GCSatomic)
-function keepinvariant(const g: global_State): Boolean;
+function keepinvariant(const g: Pglobal_State): Boolean;
 begin
-  Result := (g.gcstate <= GCSatomic);
+  Result := (g^.gcstate <= GCSatomic);
 end;
 
 //#define iswhite(x)      testbits((x)->marked, WHITEBITS)
-function iswhite(const x: CommonHeader): Boolean;
+function iswhite(const x: PGCObject): Boolean;
 begin
-  Result := (x.marked and WHITEBITS) <> 0;
+  Result := (x^.marked and WHITEBITS) <> 0;
 end;
 
 //#define isblack(x)      testbit((x)->marked, BLACKBIT)
-function isblack(const x: CommonHeader): Boolean;
+function isblack(const x: PGCObject): Boolean;
 begin
-  Result := (x.marked and bitmask_BLACKBIT) <> 0;
+  Result := (x^.marked and bitmask_BLACKBIT) <> 0;
 end;
 
 //#define isgray(x)  /* neither white nor black */  \
 //        (!testbits((x)->marked, WHITEBITS | bitmask(BLACKBIT)))
-function isgray(const x: CommonHeader): Boolean;
+function isgray(const x: PGCObject): Boolean;
 begin
-  Result := (x.marked and (WHITEBITS or bitmask_BLACKBIT)) = 0;
+  Result := (x^.marked and (WHITEBITS or bitmask_BLACKBIT)) = 0;
 end;
 
 
 //#define tofinalize(x)   testbit((x)->marked, FINALIZEDBIT)
-function tofinalize(const x: CommonHeader): Boolean;
+function tofinalize(const x: PGCObject): Boolean;
 begin
-  Result := (x.marked and bitmask_FINALIZEDBIT) <> 0;
+  Result := (x^.marked and bitmask_FINALIZEDBIT) <> 0;
 end;
 
 //#define otherwhite(g)   ((g)->currentwhite ^ WHITEBITS)
-function otherwhite(const g: global_State): lu_byte;
+function otherwhite(const g: Pglobal_State): lu_byte;
 begin
-  Result := g.currentwhite xor WHITEBITS;
+  Result := g^.currentwhite xor WHITEBITS;
 end;
 
 //#define isdeadm(ow,m)   (!(((m) ^ WHITEBITS) & (ow)))
@@ -198,30 +198,30 @@ begin
 end;
 
 //#define isdead(g,v)     isdeadm(otherwhite(g), (v)->marked)
-function isdead(const g: global_State; const v: CommonHeader): Boolean;
+function isdead(const g: Pglobal_State; const v: PGCObject): Boolean;
 begin
-  Result := ( ( v.marked xor WHITEBITS) and otherwhite(g) ) = 0;
+  Result := ( ( v^.marked xor WHITEBITS) and otherwhite(g) ) = 0;
 end;
 
 //#define changewhite(x)  ((x)->marked ^= WHITEBITS)
-procedure changewhite(var x: CommonHeader);
+procedure changewhite(var x: GCObject);
 begin
   x.marked := x.marked xor WHITEBITS;
 end;
 
 //#define gray2black(x)   l_setbit((x)->marked, BLACKBIT)
-procedure gray2black(var x: CommonHeader);
+procedure gray2black(var x: GCObject);
 begin
   x.marked := x.marked or bitmask_BLACKBIT;
 end;
 
 //#define luaC_white(g)   cast(lu_byte, (g)->currentwhite & WHITEBITS)
-function luaC_white(const g: global_State): lu_byte;
+function luaC_white(const g: Pglobal_State): lu_byte;
 begin
-  Result := g.currentwhite and WHITEBITS;
+  Result := g^.currentwhite and WHITEBITS;
 end;
 
-procedure luaC_condGC(const L: Plua_State);
+procedure luaC_condGC;
 begin
 
 end;
@@ -258,7 +258,7 @@ end;
 //        luaC_barrier_(L,obj2gco(p),gcvalue(v)) : cast_void(0))
 procedure luaC_barrier(const L: Plua_State; const p: PGCObject; const v: PTValue);
 begin
-  if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
+  if iscollectable(v) and isblack(p) and iswhite(gcvalue(v)) then
     luaC_barrier_(L, p, gcvalue(v));
 end;
 
@@ -267,7 +267,7 @@ end;
 //        luaC_barrierback_(L,p) : cast_void(0))
 procedure luaC_barrierback(const L: Plua_State; const p: PTable; const v: PTValue);
 begin
-  if iscollectable(v) and isblack(p^.header) and iswhite(gcvalue(v)^.header) then
+  if iscollectable(v) and isblack(PGCObject(p)) and iswhite(gcvalue(v)) then
     luaC_barrierback_(L, p);
 end;
 
@@ -276,7 +276,7 @@ end;
 //        luaC_barrier_(L,obj2gco(p),obj2gco(o)) : cast_void(0))
 procedure luaC_objbarrier(const L: Plua_State; const p, o: PGCObject);
 begin
-  if isblack(p^.header) and iswhite(o^.header) then
+  if isblack(p) and iswhite(o) then
     luaC_barrier_(L, p, o);
 end;
 
