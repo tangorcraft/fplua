@@ -102,7 +102,7 @@ procedure luaC_fix(const L: Plua_State; const o: PGCObject);
 procedure luaC_freeallobjects(const L: Plua_State);
 procedure luaC_step(const L: Plua_State);
 procedure luaC_runtilstate(const L: Plua_State; const statesmask: Integer);
-procedure luaC_fullgc(const L: Plua_State; const isemergency: Integer);
+procedure luaC_fullgc(const L: Plua_State; const isemergency: Boolean);
 function luaC_newobj(const L: Plua_State; const tt: Integer; const sz: SizeUInt): PGCObject;
 // these 3 don't need to be exposed in interface
 //procedure luaC_barrier_(const L: Plua_State; const o, v: PGCObject);
@@ -115,8 +115,8 @@ procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 implementation
 
 uses
-  SysUtils, fp_lua,
-  ldebug, ldo, lfunc, lmem, lobject, lstate, lstring, ltable, ltm;
+  SysUtils,
+  ldo, lfunc, lmem, lobject, lstate, lstring, ltable, ltm;
 
 (*
 ** some useful bit tricks
@@ -1396,6 +1396,221 @@ end;
 (* ======================================================= *)
 
 
+(*
+** =======================================================
+** GC control
+** =======================================================
+*)
+
+
+(*
+** Set a reasonable "time" to wait before starting a new GC cycle; cycle
+** will start when memory use hits threshold. (Division by 'estimate'
+** should be OK: it cannot be zero (because Lua cannot even start with
+** less than PAUSEADJ bytes).
+*)
+//static void setpause (global_State *g)
+procedure setpause(const g: Pglobal_State);
+var
+  threshold, debt, estimate: l_mem;
+begin
+  estimate := g^.GCestimate div PAUSEADJ;  //* adjust 'estimate' */
+  lua_assert(estimate > 0);
+  if g^.gcpause < (MAX_LMEM div estimate) then //* overflow? */
+    threshold := estimate * g^.gcpause  //* no overflow */
+  else
+    threshold := MAX_LMEM;  //* overflow; truncate to maximum */
+  debt := gettotalbytes(g) - threshold;
+  luaE_setdebt(g, debt);
+end;
+
+
+(*
+** Enter first sweep phase.
+** The call to 'sweeplist' tries to make pointer point to an object
+** inside the list (instead of to the header), so that the real sweep do
+** not need to skip objects created between "now" and the start of the
+** real sweep.
+*)
+//static void entersweep (lua_State *L)
+procedure entersweep(const L: Plua_State);
+var
+  g: Pglobal_State;
+begin
+  g := L^.l_G;
+  g^.gcstate := GCSswpallgc;
+  lua_assert(g^.sweepgc = Nil);
+  g^.sweepgc := sweeplist(L, @g^.allgc, 1);
+end;
+
+
+//static l_mem atomic (lua_State *L)
+function atomic(const L: Plua_State): l_mem;
+var
+  g: Pglobal_State;
+  work: l_mem;
+  origweak, origall, grayagain: PGCObject;
+begin
+  g := L^.l_G;
+  grayagain := g^.grayagain;  //* save original list */
+  lua_assert((g^.ephemeron = Nil) and (g^.weak = Nil));
+  lua_assert(not iswhite(PGCObject(g^.mainthread)));
+  g^.gcstate := GCSinsideatomic;
+  g^.GCmemtrav := 0;  //* start counting work */
+  markobject(g, L);  //* mark running thread */
+  //* registry and global metatables may be changed by API */
+  markvalue(g, @g^.l_registry);
+  markmt(g);  //* mark global metatables */
+  //* remark occasional upvalues of (maybe) dead threads */
+  remarkupvals(g);
+  propagateall(g);  //* propagate changes */
+  work := g^.GCmemtrav;  //* stop counting (do not recount 'grayagain') */
+  g^.gray := grayagain;
+  propagateall(g);  //* traverse 'grayagain' list */
+  g^.GCmemtrav := 0;  //* restart counting */
+  convergeephemerons(g);
+  //* at this point, all strongly accessible objects are marked. */
+  //* Clear values from weak tables, before checking finalizers */
+  clearvalues(g, g^.weak, Nil);
+  clearvalues(g, g^.allweak, Nil);
+  origweak := g^.weak;
+  origall := g^.allweak;
+  work := work + g^.GCmemtrav;  //* stop counting (objects being finalized) */
+  separatetobefnz(g, False);  //* separate objects to be finalized */
+  g^.gcfinnum := 1;  //* there may be objects to be finalized */
+  markbeingfnz(g);  //* mark objects that will be finalized */
+  propagateall(g);  //* remark, to propagate 'resurrection' */
+  g^.GCmemtrav := 0;  //* restart counting */
+  convergeephemerons(g);
+  //* at this point, all resurrected objects are marked. */
+  //* remove dead objects from weak tables */
+  clearkeys(g, g^.ephemeron, Nil);  //* clear keys from all ephemeron tables */
+  clearkeys(g, g^.allweak, Nil);  //* clear keys from all 'allweak' tables */
+  //* clear values from resurrected weak tables */
+  clearvalues(g, g^.weak, origweak);
+  clearvalues(g, g^.allweak, origall);
+  luaS_clearcache(g);
+  g^.currentwhite := otherwhite(g);  //* flip current white */
+  work := work + g^.GCmemtrav;  //* complete counting */
+  Result := work;  //* estimate of memory marked by 'atomic' */
+end;
+
+
+//static lu_mem sweepstep (lua_State *L, global_State *g,
+//                         int nextstate, GCObject **nextlist)
+function sweepstep(const L: Plua_State; const g: Pglobal_State;
+  const nextstate: Integer; const nextlist: PPGCObject): lu_mem;
+var
+  olddebt: l_mem;
+begin
+  if (g^.sweepgc <> nil) then
+  begin
+    olddebt := g^.GCdebt;
+    g^.sweepgc := sweeplist(L, g^.sweepgc, GCSWEEPMAX);
+    g^.GCestimate := g^.GCestimate + g^.GCdebt - olddebt;  //* update estimate */
+    if (g^.sweepgc <> nil) then //* is there still something to sweep? */
+      Exit(GCSWEEPMAX * GCSWEEPCOST);
+  end;
+  //* else enter next state */
+  g^.gcstate := nextstate;
+  g^.sweepgc := nextlist;
+  Result := 0;
+end;
+
+
+//static lu_mem singlestep (lua_State *L)
+function singlestep(const L: Plua_State): lu_mem;
+var
+  g: Pglobal_State;
+  work: lu_mem;
+  n: Integer;
+begin
+  g := L^.l_G;
+  case (g^.gcstate) of
+    GCSpause: begin
+      g^.GCmemtrav := g^.strt.size * sizeof(PGCObject);
+      restartcollection(g);
+      g^.gcstate := GCSpropagate;
+      Result := g^.GCmemtrav;
+    end;
+    GCSpropagate: begin
+      g^.GCmemtrav := 0;
+      lua_assert(g^.gray <> nil);
+      propagatemark(g);
+      if (g^.gray = Nil) then //* no more gray objects? */
+        g^.gcstate := GCSatomic;  //* finish propagate phase */
+      Result := g^.GCmemtrav;  //* memory traversed in this step */
+    end;
+    GCSatomic: begin
+      propagateall(g);  //* make sure gray list is empty */
+      work := atomic(L);  //* work is what was traversed by 'atomic' */
+      entersweep(L);
+      g^.GCestimate := gettotalbytes(g);  //* first estimate */;
+      Result := work;
+    end;
+    GCSswpallgc:   //* sweep "regular" objects */
+      Result := sweepstep(L, g, GCSswpfinobj, @g^.finobj);
+
+    GCSswpfinobj:   //* sweep objects with finalizers */
+      Result := sweepstep(L, g, GCSswptobefnz, @g^.tobefnz);
+
+    GCSswptobefnz:   //* sweep objects to be finalized */
+      Result := sweepstep(L, g, GCSswpend, Nil);
+
+    GCSswpend: begin  //* finish sweeps */
+      makewhite(g, PGCObject(g^.mainthread));  //* sweep main thread */
+      checkSizes(L, g);
+      g^.gcstate := GCScallfin;
+      Result := 0;
+    end;
+    GCScallfin: begin  //* call remaining finalizers */
+      if (g^.tobefnz <> nil) and (g^.gckind <> KGC_EMERGENCY) then
+      begin
+        n := runafewfinalizers(L);
+        Result := (n * GCFINALIZECOST);
+      end
+      else  //* emergency mode or no more finalizers */
+      begin
+        g^.gcstate := GCSpause;  //* finish collection */
+        Result := 0;
+      end;
+    end;
+    else begin
+      lua_assert(0);
+      Result := 0;
+    end
+  end;
+end;
+
+
+(*
+** get GC debt and convert it from Kb to 'work units' (avoid zero debt
+** and overflows)
+*)
+//static l_mem getdebt (global_State *g)
+function getdebt(const g: Pglobal_State): l_mem;
+var
+  debt: l_mem;
+  stepmul: Integer;
+begin
+  debt := g^.GCdebt;
+  stepmul := g^.gcstepmul;
+  if (debt <= 0) then
+    Result := 0  //* minimal debt */
+  else
+  begin
+    debt := (debt div STEPMULADJ) + 1;
+    if debt < (MAX_LMEM div stepmul) then
+      debt := debt * stepmul
+    else
+      debt := MAX_LMEM;
+    Result := debt;
+  end;
+end;
+
+(* ======================================================= *)
+
+
 procedure luaC_fix(const L: Plua_State; const o: PGCObject);
 var
   gs: Pglobal_State;
@@ -1409,23 +1624,94 @@ begin
 end;
 
 procedure luaC_freeallobjects(const L: Plua_State);
+var
+  g: Pglobal_State;
 begin
-
+  g := L^.l_G;
+  separatetobefnz(g, True);  //* separate all objects with finalizers */
+  lua_assert(g^.finobj = Nil);
+  callallpendingfinalizers(L);
+  lua_assert(g^.tobefnz = Nil);
+  g^.currentwhite := WHITEBITS; //* this "white" makes all objects look dead */
+  g^.gckind := KGC_NORMAL;
+  sweepwholelist(L, @g^.finobj);
+  sweepwholelist(L, @g^.allgc);
+  sweepwholelist(L, @g^.fixedgc);  //* collect fixed objects */
+  lua_assert(g^.strt.nuse = 0);
 end;
 
+(*
+** performs a basic GC step when collector is running
+*)
 procedure luaC_step(const L: Plua_State);
+var
+  g: Pglobal_State;
+  debt: l_mem;
+  work: lu_mem;
 begin
-
+  g := L^.l_G;
+  debt := getdebt(g);  //* GC deficit (be paid now) */
+  if (g^.gcrunning = 0) then   //* not running? */
+  begin
+    luaE_setdebt(g, -GCSTEPSIZE * 10);  //* avoid being called too often */
+    Exit;
+  end;
+  repeat  //* repeat until pause or enough "credit" (negative debt) */
+    work := singlestep(L);  //* perform one single step */
+    debt := debt - work;
+  until (debt <= -GCSTEPSIZE) or (g^.gcstate = GCSpause);
+  if (g^.gcstate = GCSpause) then
+    setpause(g)  //* pause until next cycle */
+  else
+  begin
+    debt := (debt div g^.gcstepmul) * STEPMULADJ;  //* convert 'work units' to Kb */
+    luaE_setdebt(g, debt);
+    runafewfinalizers(L);
+  end;
 end;
 
+(*
+** advances the garbage collector until it reaches a state allowed
+** by 'statemask'
+*)
 procedure luaC_runtilstate(const L: Plua_State; const statesmask: Integer);
+var
+  g: Pglobal_State;
 begin
-
+  g := L^.l_G;
+  //while (!testbit(statesmask, g->gcstate))
+  while (statesmask and (1 shl g^.gcstate)) = 0 do
+    singlestep(L);
 end;
 
-procedure luaC_fullgc(const L: Plua_State; const isemergency: Integer);
+(*
+** Performs a full GC cycle; if 'isemergency', set a flag to avoid
+** some operations which could change the interpreter state in some
+** unexpected ways (running finalizers and shrinking some structures).
+** Before running the collection, check 'keepinvariant'; if it is true,
+** there may be some objects marked as black, so the collector has
+** to sweep all objects to turn them back to white (as white has not
+** changed, nothing will be collected).
+*)
+procedure luaC_fullgc(const L: Plua_State; const isemergency: Boolean);
+var
+  g: Pglobal_State;
 begin
+  g := L^.l_G;
+  lua_assert(g^.gckind = KGC_NORMAL);
+  if (isemergency) then g^.gckind := KGC_EMERGENCY;  //* set flag */
+  if (keepinvariant(g)) then  //* black objects? */
+    entersweep(L); //* sweep everything to turn them back to white */
 
+  //* finish any pending sweep phase to start a new cycle */
+  luaC_runtilstate(L, (1 shl GCSpause));
+  luaC_runtilstate(L, not (1 shl GCSpause));  //* start new collection */
+  luaC_runtilstate(L, (1 shl GCScallfin));  //* run up to finalizers */
+  //* estimate must be correct after a full GC cycle */
+  lua_assert(g^.GCestimate = gettotalbytes(g));
+  luaC_runtilstate(L, (1 shl GCSpause));  //* finish collection */
+  g^.gckind := KGC_NORMAL;
+  setpause(g);
 end;
 
 (*
