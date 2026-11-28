@@ -1042,6 +1042,186 @@ end;
 (* ======================================================= *)
 
 
+(*
+** =======================================================
+** Sweep Functions
+** =======================================================
+*)
+
+
+(*
+** clear entries with unmarked keys from all weaktables in list 'l' up
+** to element 'f'
+*)
+//static void clearkeys (global_State *g, GCObject *l, GCObject *f)
+procedure clearkeys(const g: Pglobal_State; l, f: PGCObject);
+var
+  h: PTable;
+  n, limit: PNode;
+begin
+  while (l <> f) do
+  begin
+    h := gco2t(l);
+    limit := gnodelast(h);
+    n := gnode(h, 0);
+    while (n < limit) do
+    begin
+      if (not ttisnil(gval(n)) and iscleared(g, gkey(n))) then
+        setnilvalue(gval(n));  //* remove value ... */
+      if (ttisnil(gval(n))) then //* is entry empty? */
+        removeentry(n);  //* remove entry from table */
+      inc(n);
+    end;
+    l := gco2t(l)^.gclist;
+  end;
+end;
+
+
+(*
+** clear entries with unmarked values from all weaktables in list 'l' up
+** to element 'f'
+*)
+//static void clearvalues (global_State *g, GCObject *l, GCObject *f)
+procedure clearvalues(const g: Pglobal_State; l, f: PGCObject);
+var
+  h: PTable;
+  n, limit: PNode;
+  i: Cardinal;
+  o: PTValue;
+begin
+  while (l <> f) do
+  begin
+    h := gco2t(l);
+    limit := gnodelast(h);
+    for i := 0 to h^.sizearray-1 do
+    begin
+      o := @h^.array_[i];
+      if (iscleared(g, o)) then //* value was collected? */
+        setnilvalue(o);  //* remove value */
+    end;
+    n := gnode(h, 0);
+    while (n < limit) do
+    begin
+      if (not ttisnil(gval(n)) and iscleared(g, gval(n))) then
+      begin
+        setnilvalue(gval(n));  //* remove value ... */
+        removeentry(n);  //* and remove entry from table */
+      end;
+      Inc(n);
+    end;
+    l := gco2t(l)^.gclist;
+  end;
+end;
+
+//static void freeLclosure (lua_State *L, LClosure *cl)
+procedure freeLclosure(const L: Plua_State; const cl: PLClosure);
+var
+  i: Integer;
+  uv: PUpVal;
+begin
+  for i := 0 to cl^.header.nupvalues-1 do
+  begin
+    uv := LClosure_upvalsN(cl, i);
+    if (uv <> nil) then
+      luaC_upvdeccount(L, uv);
+  end;
+  luaM_freemem(L, cl, sizeLclosure(cl^.header.nupvalues));
+end;
+
+
+//static void freeobj (lua_State *L, GCObject *o)
+procedure freeobj(const L: Plua_State; const o: PGCObject);
+begin
+  case (o^.tt) of
+    LUA_TPROTO:
+      luaF_freeproto(L, gco2p(o));
+    LUA_TLCL:
+      freeLclosure(L, gco2lcl(o));
+    LUA_TCCL:
+      luaM_freemem(L, o, sizeCclosure(gco2ccl(o)^.header.nupvalues));
+    LUA_TTABLE:
+      luaH_free(L, gco2t(o));
+    LUA_TTHREAD:
+      luaE_freethread(L, gco2th(o));
+    LUA_TUSERDATA:
+      luaM_freemem(L, o, sizeudata(gco2u(o)));
+    LUA_TSHRSTR: begin
+      luaS_remove(L, gco2ts(o));  //* remove it from hash table */
+      luaM_freemem(L, o, sizelstring(gco2ts(o)^.shrlen));
+    end;
+    LUA_TLNGSTR:
+      luaM_freemem(L, o, sizelstring(gco2ts(o)^.u_lnglen));
+    else lua_assert(0);
+  end;
+end;
+
+
+//#define sweepwholelist(L,p)	sweeplist(L,p,MAX_LUMEM)
+//static GCObject **sweeplist (lua_State *L, GCObject **p, lu_mem count);
+function sweeplist(const L: Plua_State; p: PPGCObject; count: lu_mem): PPGCObject; forward;
+procedure sweepwholelist(const L: Plua_State; p: PPGCObject);
+begin
+  sweeplist(L,p,MAX_LUMEM);
+end;
+
+(*
+** sweep at most 'count' elements from a list of GCObjects erasing dead
+** objects, where a dead object is one marked with the old (non current)
+** white; change all non-dead objects back to white, preparing for next
+** collection cycle. Return where to continue the traversal or NULL if
+** list is finished.
+*)
+//static GCObject **sweeplist (lua_State *L, GCObject **p, lu_mem count)
+function sweeplist(const L: Plua_State; p: PPGCObject; count: lu_mem): PPGCObject;
+var
+  g: Pglobal_State;
+  ow, white, marked: lu_byte;
+  curr: PGCObject;
+begin
+  g := L^.l_G;
+  ow := otherwhite(g);
+  white := luaC_white(g);  //* current white */
+  while (p^ <> Nil) and (count > 0) do
+  begin
+    dec(count);
+    curr := p^;
+    marked := curr^.marked;
+    if (isdeadm(ow, marked)) then  //* is 'curr' dead? */
+    begin
+      p^ := curr^.next;  //* remove 'curr' from list */
+      freeobj(L, curr);  //* erase 'curr' */
+    end
+    else   //* change mark to 'white' */
+    begin
+      curr^.marked := cast_byte((marked and maskcolors) or white);
+      p := @curr^.next;  //* go to next element */
+    end;
+  end;
+  if (p^ = Nil) then
+    Result := Nil
+  else
+    Result := p;
+end;
+
+
+(*
+** sweep a list until a live object (or end of list)
+*)
+//static GCObject **sweeptolive (lua_State *L, GCObject **p)
+function sweeptolive(const L: Plua_State; p: PPGCObject): PPGCObject;
+var
+  old: PPGCObject;
+begin
+  old := p;
+  repeat
+    p := sweeplist(L, p, 1);
+  until (p <> old);
+  Result := p;
+end;
+
+(* ======================================================= *)
+
+
 procedure luaC_fix(const L: Plua_State; const o: PGCObject);
 var
   gs: Pglobal_State;
@@ -1097,7 +1277,10 @@ end;
 
 procedure luaC_upvdeccount(const L: Plua_State; const uv: PUpVal);
 begin
-
+  lua_assert(uv^.refcount > 0);
+  dec(uv^.refcount);
+  if (uv^.refcount = 0) and not upisopen(uv) then
+    luaM_free(L, uv, sizeof(UpVal));
 end;
 
 
